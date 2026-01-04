@@ -38,17 +38,22 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           canvas,
           arguments: ['./'],
           INITIAL_MEMORY: 67108864,
-          printErr: console.error,
-          print: console.log,
+          printErr: (text: string) => {
+            console.error('Love.js error:', text);
+          },
+          print: (text: string) => {
+            console.log('Love.js:', text);
+          },
 
           setStatus: (text: string) => {
             console.log('Love.js status:', text);
-            if (!text) {
-              // All loading complete
+            // When status is empty or indicates running, game is loaded
+            if (!text || text === '' || text.includes('Running')) {
+              console.log('Game loaded, calling onLoad');
               setTimeout(() => {
                 luaBridge.init(window.Module);
                 onLoad();
-              }, 100);
+              }, 500);
             }
           },
 
@@ -57,42 +62,54 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           monitorRunDependencies: function(left: number) {
             this.remainingDependencies = left;
             this.totalDependencies = Math.max(this.totalDependencies, left);
-            if (left === 0) {
+            console.log(`Dependencies: ${this.totalDependencies - left}/${this.totalDependencies}`);
+            if (left === 0 && this.totalDependencies > 0) {
               window.Module.setStatus('');
-            } else {
-              window.Module.setStatus(`Loading... (${this.totalDependencies - left}/${this.totalDependencies})`);
             }
+          },
+
+          onRuntimeInitialized: () => {
+            console.log('Love.js runtime initialized');
           },
         };
 
         // Load game.js first (sets up data file loader)
+        console.log('Loading game.js...');
         const gameScript = document.createElement('script');
         gameScript.src = '/game.js';
-        gameScript.async = false;
 
-        gameScript.onerror = () => {
-          console.warn('game.js not found');
+        gameScript.onerror = (e) => {
+          console.error('Failed to load game.js:', e);
+          // Still call onLoad so the UI doesn't hang
           setTimeout(onLoad, 1000);
         };
 
         // Load love.js after game.js
         gameScript.onload = () => {
-          console.log('game.js loaded');
+          console.log('game.js loaded, now loading love.js...');
 
           const loveScript = document.createElement('script');
           loveScript.src = '/love.js';
-          loveScript.async = true;
 
           loveScript.onload = () => {
-            console.log('love.js loaded, starting Love...');
+            console.log('love.js loaded');
             // Call Love() to initialize the engine
-            if (window.Love) {
-              window.Love(window.Module);
+            if (typeof window.Love === 'function') {
+              console.log('Calling Love(Module)...');
+              try {
+                window.Love(window.Module);
+              } catch (e) {
+                console.error('Error calling Love():', e);
+                setTimeout(onLoad, 1000);
+              }
+            } else {
+              console.error('Love is not a function:', typeof window.Love);
+              setTimeout(onLoad, 1000);
             }
           };
 
-          loveScript.onerror = () => {
-            console.warn('love.js not found');
+          loveScript.onerror = (e) => {
+            console.error('Failed to load love.js:', e);
             setTimeout(onLoad, 1000);
           };
 

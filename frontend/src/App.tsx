@@ -31,14 +31,14 @@ function App() {
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: string }[]>([]);
 
-  // Loading timeout (15 seconds)
+  // Loading timeout (45 seconds - WASM files are large)
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (isLoading) {
         setLoadError('Game engine failed to load. Please refresh the page.');
         setIsLoading(false);
       }
-    }, 15000);
+    }, 45000);
     return () => clearTimeout(timeout);
   }, [isLoading]);
 
