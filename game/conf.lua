@@ -1,6 +1,6 @@
 function love.conf(t)
     t.identity = "moisture"
-    t.version = "11.5"
+    t.version = "11.4"
     t.console = false
 
     -- Portrait orientation for mobile-first
