@@ -22,12 +22,25 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
 
     const loadLoveJS = async () => {
       try {
-        // Create canvas element
+        // Create canvas element with explicit dimensions
         const canvas = document.createElement('canvas');
         canvas.id = 'canvas';
+
+        // Set explicit pixel dimensions (will be scaled by CSS)
+        // Love2D game is 450x800 (portrait)
+        canvas.width = 450;
+        canvas.height = 800;
         canvas.style.width = '100%';
         canvas.style.height = '100%';
+        canvas.style.objectFit = 'contain';
+        canvas.style.display = 'block';
         canvas.oncontextmenu = (e) => e.preventDefault();
+
+        // Handle WebGL context loss
+        canvas.addEventListener('webglcontextlost', (e) => {
+          console.error('WebGL context lost');
+          e.preventDefault();
+        }, false);
 
         if (containerRef.current) {
           containerRef.current.appendChild(canvas);
@@ -80,7 +93,6 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
 
         gameScript.onerror = (e) => {
           console.error('Failed to load game.js:', e);
-          // Still call onLoad so the UI doesn't hang
           setTimeout(onLoad, 1000);
         };
 
@@ -93,7 +105,6 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
 
           loveScript.onload = () => {
             console.log('love.js loaded');
-            // Call Love() to initialize the engine
             if (typeof window.Love === 'function') {
               console.log('Calling Love(Module)...');
               try {
@@ -126,7 +137,18 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
     loadLoveJS();
   }, [onLoad]);
 
-  return <div ref={containerRef} className="game-canvas" />;
+  return (
+    <div
+      ref={containerRef}
+      className="game-canvas"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#000',
+      }}
+    />
+  );
 }
 
 export default GameCanvas;
