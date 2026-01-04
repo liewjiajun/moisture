@@ -1,0 +1,216 @@
+:root {
+  --color-cyan: #00ffff;
+  --color-green: #00ff00;
+  --color-dark: #0d1117;
+  --color-darker: #010409;
+  --color-text: #c9d1d9;
+  --color-accent: #33ccaa;
+  --color-danger: #ff4757;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-darker);
+  color: var(--color-text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Mobile gesture prevention */
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Game container */
+.game-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Love.js canvas */
+.game-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.game-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none;
+}
+
+/* Overlay UI */
+.overlay {
+  position: absolute;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.overlay > * {
+  pointer-events: auto;
+}
+
+/* Wallet connect button overlay */
+.wallet-overlay {
+  top: max(20px, env(safe-area-inset-top, 20px));
+  right: max(20px, env(safe-area-inset-right, 20px));
+}
+
+/* Emergency exit button */
+.exit-overlay {
+  top: max(20px, env(safe-area-inset-top, 20px));
+  left: max(20px, env(safe-area-inset-left, 20px));
+}
+
+.exit-button {
+  background: rgba(255, 71, 87, 0.2);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.exit-button:hover {
+  background: rgba(255, 71, 87, 0.4);
+}
+
+/* Loading screen */
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--color-darker);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-title {
+  font-size: 48px;
+  color: var(--color-cyan);
+  text-shadow: 0 0 20px var(--color-cyan);
+  margin-bottom: 20px;
+  animation: pulse 2s infinite;
+}
+
+.loading-text {
+  color: var(--color-text);
+  font-size: 18px;
+}
+
+.loading-bar {
+  width: 200px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.loading-bar-fill {
+  height: 100%;
+  background: var(--color-cyan);
+  animation: loading 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes loading {
+  0% {
+    width: 0%;
+    margin-left: 0%;
+  }
+  50% {
+    width: 50%;
+    margin-left: 25%;
+  }
+  100% {
+    width: 0%;
+    margin-left: 100%;
+  }
+}
+
+/* Sui dApp Kit overrides */
+.wkit-connected-container {
+  background: rgba(0, 255, 255, 0.1) !important;
+  border: 1px solid var(--color-cyan) !important;
+}
+
+.wkit-connect-button {
+  background: rgba(0, 255, 255, 0.2) !important;
+  border: 1px solid var(--color-cyan) !important;
+  color: var(--color-cyan) !important;
+}
+
+.wkit-connect-button:hover {
+  background: rgba(0, 255, 255, 0.3) !important;
+}
+
+/* Toast notifications */
+.toast-container {
+  position: fixed;
+  bottom: max(20px, env(safe-area-inset-bottom, 20px));
+  right: max(20px, env(safe-area-inset-right, 20px));
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast {
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid var(--color-accent);
+  border-radius: 8px;
+  padding: 12px 20px;
+  color: var(--color-text);
+  animation: slideIn 0.3s ease-out;
+}
+
+.toast.error {
+  border-color: var(--color-danger);
+}
+
+.toast.success {
+  border-color: var(--color-green);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
