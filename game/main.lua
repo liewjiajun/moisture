@@ -62,7 +62,7 @@ function love.load()
     print("[TEST] Upgrades created")
 
     print("[TEST] Creating Sauna...")
-    sauna = Sauna.new(pixelCanvas)
+    sauna = Sauna.new(pixelCanvas:getWidth(), pixelCanvas:getHeight())
     print("[TEST] Sauna created")
 
     print("[TEST] love.load complete!")
