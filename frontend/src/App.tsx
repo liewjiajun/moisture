@@ -103,14 +103,94 @@ function App() {
   }, []);
 
   // Update Lua bridge with wallet state
-  // Messages are queued and Lua polls for them, so no need to wait for bridge
+  // Since the JS-Lua bridge doesn't work, we simulate a canvas click to enter sauna
   useEffect(() => {
     if (account) {
-      console.log('[Bridge] Queueing wallet connected state');
+      console.log('[Bridge] Wallet connected, simulating canvas click to enter sauna');
       luaBridge.setWalletState({
         connected: true,
         address: account.address,
       });
+
+      // Wait for game to be ready, then simulate click on "Play as Guest" button
+      // Button is at pixel coords (90, 242), canvas scale is 2.5x
+      const simulateClick = () => {
+        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+        if (!canvas) {
+          console.log('[Bridge] Canvas not found, retrying...');
+          setTimeout(simulateClick, 500);
+          return;
+        }
+
+        // Get canvas position
+        const rect = canvas.getBoundingClientRect();
+        // Calculate click position (center of "Play as Guest" button)
+        // Pixel coords: x=90, y=242 -> scaled by (canvas.width/180, canvas.height/320)
+        const scaleX = rect.width / 180;
+        const scaleY = rect.height / 320;
+        const clickX = rect.left + 90 * scaleX;
+        const clickY = rect.top + 242 * scaleY;
+
+        console.log('[Bridge] Simulating click at canvas coords:', clickX, clickY);
+
+        // Dispatch touch events (for mobile) and mouse events (for desktop)
+        const touchStart = new TouchEvent('touchstart', {
+          bubbles: true,
+          cancelable: true,
+          touches: [new Touch({
+            identifier: 1,
+            target: canvas,
+            clientX: clickX,
+            clientY: clickY,
+          })],
+        });
+        const touchEnd = new TouchEvent('touchend', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [new Touch({
+            identifier: 1,
+            target: canvas,
+            clientX: clickX,
+            clientY: clickY,
+          })],
+        });
+
+        // Try touch events first
+        try {
+          canvas.dispatchEvent(touchStart);
+          setTimeout(() => canvas.dispatchEvent(touchEnd), 50);
+          console.log('[Bridge] Touch events dispatched');
+        } catch (e) {
+          console.log('[Bridge] Touch events failed, trying mouse events');
+        }
+
+        // Also try mouse events as fallback
+        const mouseDown = new MouseEvent('mousedown', {
+          bubbles: true,
+          cancelable: true,
+          clientX: clickX,
+          clientY: clickY,
+          button: 0,
+        });
+        const mouseUp = new MouseEvent('mouseup', {
+          bubbles: true,
+          cancelable: true,
+          clientX: clickX,
+          clientY: clickY,
+          button: 0,
+        });
+
+        setTimeout(() => {
+          canvas.dispatchEvent(mouseDown);
+          setTimeout(() => {
+            canvas.dispatchEvent(mouseUp);
+            console.log('[Bridge] Mouse events dispatched');
+          }, 50);
+        }, 100);
+      };
+
+      // Wait a bit for game to fully initialize
+      setTimeout(simulateClick, 1000);
     } else {
       luaBridge.setWalletState({
         connected: false,
