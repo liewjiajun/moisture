@@ -124,10 +124,25 @@ function Bridge.pollMessages()
         return
     end
 
+    -- DEBUG: Log once to confirm we're polling
+    if not Bridge._loggedPolling then
+        print("[Bridge] pollMessages: Starting to poll...")
+        print("[Bridge] js exists: " .. tostring(js ~= nil))
+        print("[Bridge] js.global exists: " .. tostring(js and js.global ~= nil))
+        local hasFn = js and js.global and js.global.getPendingBridgeMessages
+        print("[Bridge] getPendingBridgeMessages exists: " .. tostring(hasFn ~= nil))
+        Bridge._loggedPolling = true
+    end
+
     -- Try to get pending messages from JavaScript
     local success, json = pcall(function()
         if js and js.global and js.global.getPendingBridgeMessages then
-            return js.global.getPendingBridgeMessages()  -- Use . not : (it's a function, not a method)
+            local result = js.global.getPendingBridgeMessages()  -- Use . not : (it's a function, not a method)
+            -- DEBUG: Log non-empty results
+            if result and result ~= "[]" and result ~= "" then
+                print("[Bridge] Got messages: " .. tostring(result))
+            end
+            return result
         end
         return "[]"
     end)
