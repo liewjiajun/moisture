@@ -428,7 +428,23 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Bug Fixes V3 - Sound + Bridge Architecture Fix)**:
+**Latest Session (Bug Fixes V3.1 - Cache Issue + Verification)**:
+After deploying V3, browser console still showed old code (`[Sounds] Missing:` instead of `[Sounds] FAILED:`). This indicated Vercel/browser was serving cached version.
+
+- Force rebuilt Love.js with `rm -rf frontend/public/game/* && npx love.js -c ...`
+- Verified game.data contains:
+  - Absolute sound paths (`/assets/sounds/shoot.wav` etc.) ✓
+  - `Bridge.pollMessages()` function ✓
+  - WAV file headers (RIFF/WAVE) - sounds ARE packaged ✓
+- User needs to hard refresh (Cmd+Shift+R) to clear browser cache
+
+**Pending verification**: After cache clear, console should show:
+- `[Sounds] OK: shoot` (or FAILED with error details)
+- `[Bridge] Wallet state updated: true`
+
+---
+
+**Previous Session (Bug Fixes V3 - Sound + Bridge Architecture Fix)**:
 V2 fixes still didn't work. Deep investigation revealed fundamental architectural issues:
 
 - Fixed sounds not loading:
