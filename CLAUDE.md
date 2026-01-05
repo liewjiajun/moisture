@@ -279,8 +279,7 @@ VITE_FIREBASE_APP_ID=
 ## Game Controls
 
 **Mobile (Primary)**:
-- Bottom-left touch: Virtual joystick (move)
-- Bottom-right touch: Blink teleport (if unlocked)
+- Touch anywhere: Virtual joystick appears at touch location (drag to move)
 - Tap cards: Select upgrade during card selection
 
 **Desktop**:
@@ -288,7 +287,6 @@ VITE_FIREBASE_APP_ID=
 - Space/Shift: Blink teleport (if unlocked)
 - 1/2/3 or Arrow+Enter: Select card
 - R: Reroll character (in sauna lounge)
-- C: Toggle CRT shader
 
 ## Smart Contract (game_core.move)
 
@@ -315,7 +313,6 @@ VITE_FIREBASE_APP_ID=
 
 - **Pixel Canvas**: 180x320 base resolution, scaled up with nearest-neighbor
 - **Portrait-first**: Designed for mobile phones
-- **CRT Shader**: Scanlines, curvature, chromatic aberration (toggle with C)
 - **Card System**: Every 10s, game pauses for upgrade selection
 - **Bullet Physics**: Wall bouncing (max 2), player repel/freeze/shrink effects
 - **Visual Polish**: Bullet trails, glow effects, screen shake, spawn animations
@@ -356,10 +353,13 @@ VITE_FIREBASE_APP_ID=
 - [x] **Improved game HUD** (score panel, hearts, timer)
 - [x] **Smart contract validations** (oracle key, grace period)
 - [x] **Frontend deployment config** (vercel.json, meta tags)
+- [x] **Sound WAV files** (10 generated retro-style sounds)
+- [x] **Touch controls polish** (joystick appears on touch, works anywhere)
+- [x] **Menu button in sauna** (return to main menu)
+- [x] **Wallet connect fix** (button selector corrected)
 
 ### Known Issues
 - [ ] Gameplay too difficult - enemies spawn too fast
-- [ ] Need actual sound files in assets/sounds/
 
 ### Future Work
 - [ ] Background music
@@ -384,12 +384,26 @@ VITE_FIREBASE_APP_ID=
 8. [ ] Add sound files to game/assets/sounds/ (optional, graceful fallback)
 9. [ ] Run `npm run build` in frontend/ to verify
 
-### Deploy to Vercel
+### Deploy to Vercel (Auto-deploy via Git)
+
+The project is connected to Vercel for automatic deployments. Push to `main` branch to trigger a production deploy:
+
+```bash
+# Rebuild Love.js game first
+npx love.js -c game frontend/public/game --title "Moisture"
+
+# Commit and push
+git add .
+git commit -m "Your commit message"
+git push origin main
+# Vercel auto-deploys from main branch
+```
+
+**Manual deploy** (if needed):
 ```bash
 cd frontend
 npm install
 npm run build  # Verify build works
-vercel         # Deploy to preview
 vercel --prod  # Deploy to production
 ```
 
@@ -408,7 +422,25 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Pre-Deployment Polish)**:
+**Latest Session (Post-Launch Polish)**:
+- Fixed wallet connect button (changed selector to find button inside .wallet-overlay div)
+- Removed CRT filter (disabled, shader code removed)
+- Removed haptic feedback calls (not supported in Love.js/web)
+- Fixed touch controls: joystick now appears only when touching, works anywhere on screen
+- Added MENU button in sauna top-left to return to main menu
+- Generated 10 WAV sound effect files using Python
+- Deployed via git push (auto-deploys to Vercel)
+
+**Files Modified**:
+- `game/main.lua` - Removed CRT shader, haptic calls, added menu button handler
+- `game/src/sauna.lua` - Added MENU button drawing and click detection
+- `game/src/touchcontrols.lua` - Simplified to show joystick only when touching, works anywhere
+- `frontend/src/App.tsx` - Fixed wallet connect button selector
+- `game/assets/sounds/*.wav` - NEW: 10 generated sound effect files
+
+---
+
+**Previous Session (Pre-Deployment Polish)**:
 - Fixed screen shake reset bug (main.lua:111 < to <=)
 - Added past winners display call in sauna:draw()
 - Removed dead code functions from sauna.lua
@@ -424,17 +456,3 @@ _Add notes here during development sessions to preserve context across auto-comp
 - Updated index.html with Open Graph and Apple meta tags
 - Fixed TypeScript build errors
 - Created public/moisture.svg favicon
-
-**Files Modified**:
-- `game/main.lua` - Screen shake fix, sounds integration, countdown sounds
-- `game/src/sauna.lua` - Past winners display, door/leaderboard visuals, chat sounds
-- `game/src/sounds.lua` - NEW: Sound effects module
-- `contracts/moisture/sources/game_core.move` - Oracle validation, grace period
-- `frontend/.env` - NEW: Environment template
-- `frontend/vercel.json` - NEW: Deployment config
-- `frontend/index.html` - Meta tags, loading screen
-- `frontend/public/moisture.svg` - NEW: Favicon
-- `frontend/src/App.tsx` - TypeScript fixes
-- `frontend/src/bridge/luaBridge.ts` - TypeScript fixes
-- `frontend/src/hooks/useFirebaseStats.ts` - Unused import removed
-- `CLAUDE.md` - Updated with all changes
