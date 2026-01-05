@@ -11,11 +11,19 @@ PixelCanvas.BASE_HEIGHT = 320
 function PixelCanvas.new()
     local self = setmetatable({}, PixelCanvas)
 
-    self.canvas = love.graphics.newCanvas(
-        PixelCanvas.BASE_WIDTH,
-        PixelCanvas.BASE_HEIGHT
-    )
-    self.canvas:setFilter("nearest", "nearest")
+    -- Wrap canvas creation in pcall for Love.js compatibility
+    local success, err = pcall(function()
+        self.canvas = love.graphics.newCanvas(
+            PixelCanvas.BASE_WIDTH,
+            PixelCanvas.BASE_HEIGHT
+        )
+        self.canvas:setFilter("nearest", "nearest")
+    end)
+
+    if not success then
+        print("[PixelCanvas] Canvas creation failed:", err)
+        self.canvas = nil
+    end
 
     self.scale = 1
     self.offsetX = 0
@@ -43,41 +51,49 @@ function PixelCanvas:resize(windowWidth, windowHeight)
 end
 
 function PixelCanvas:startDraw()
-    love.graphics.setCanvas(self.canvas)
-    love.graphics.clear(0.08, 0.08, 0.12, 1)
+    if self.canvas then
+        love.graphics.setCanvas(self.canvas)
+        love.graphics.clear(0.08, 0.08, 0.12, 1)
+    else
+        -- Fallback: draw directly to screen
+        love.graphics.clear(0.08, 0.08, 0.12, 1)
+    end
 end
 
 function PixelCanvas:endDraw(shader, time)
-    love.graphics.setCanvas()
+    if self.canvas then
+        love.graphics.setCanvas()
 
-    -- Draw black bars
-    love.graphics.setColor(0, 0, 0, 1)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+        -- Draw black bars
+        love.graphics.setColor(0, 0, 0, 1)
+        love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
 
-    -- Apply shader if provided
-    if shader then
-        love.graphics.setShader(shader)
-        if shader:hasUniform("time") then
-            shader:send("time", time or 0)
+        -- Apply shader if provided
+        if shader then
+            love.graphics.setShader(shader)
+            if shader:hasUniform("time") then
+                shader:send("time", time or 0)
+            end
+            if shader:hasUniform("inputSize") then
+                shader:send("inputSize", {PixelCanvas.BASE_WIDTH * self.scale, PixelCanvas.BASE_HEIGHT * self.scale})
+            end
         end
-        if shader:hasUniform("inputSize") then
-            shader:send("inputSize", {PixelCanvas.BASE_WIDTH * self.scale, PixelCanvas.BASE_HEIGHT * self.scale})
-        end
+
+        -- Draw scaled canvas
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(
+            self.canvas,
+            self.offsetX,
+            self.offsetY,
+            0,
+            self.scale,
+            self.scale
+        )
+
+        -- Reset shader
+        love.graphics.setShader()
     end
-
-    -- Draw scaled canvas
-    love.graphics.setColor(1, 1, 1, 1)
-    love.graphics.draw(
-        self.canvas,
-        self.offsetX,
-        self.offsetY,
-        0,
-        self.scale,
-        self.scale
-    )
-
-    -- Reset shader
-    love.graphics.setShader()
+    -- If no canvas, content was drawn directly to screen in startDraw()
 end
 
 -- Convert screen coordinates to game coordinates
