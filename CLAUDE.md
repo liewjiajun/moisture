@@ -428,29 +428,37 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Wallet→Sauna, Joystick, Sound, Chat Fixes)**:
+**Latest Session (Bug Fixes V2 - Root Cause Analysis)**:
+Previous fixes didn't work. Did deep investigation to find real root causes:
+
 - Fixed wallet→Sauna transition:
-  - Added 100ms delay when setting wallet state to ensure bridge is ready
+  - Root cause: 100ms delay wasn't enough, Love.js takes 200-500ms to init
+  - Solution: Poll for window.luaBridge readiness (up to 5 seconds)
+  - Bridge calls were silently failing if luaBridge didn't exist yet
+
 - Fixed double joystick:
-  - Replaced love.touch.getTouches() check with timeout-based reset
-  - Joystick auto-hides after 0.1s of no touch activity
-- Fixed sound not playing:
-  - Changed from creating new AudioContext to resuming Love.js SDL2.audioContext
-  - Avoids conflict between two audio contexts
-- Improved mobile chat input:
-  - Increased z-index to 500, added iOS-specific fixes
-  - Added pointer-events:auto, touch-action:manipulation
-  - Larger font size (16px) to prevent iOS zoom
+  - Root cause: idleTime reset was getting triggered by continuous touchmoved events
+  - Solution: Track actual touch presence via love.touch.getTouches()
+  - Uses noTouchTime with 50ms grace period before resetting
+
+- Improved mobile chat:
+  - Root cause: focus() from events doesn't work on mobile (security restriction)
+  - Solution: Let users tap input directly, increased z-index to 1000
+  - Added onBlur auto-submit for better mobile UX
+
+- Sound debugging:
+  - Added comprehensive logging to sounds.lua
+  - Improved audio context resume with promise handling and multiple events
 
 **Files Modified**:
-- `frontend/src/App.tsx` - Wallet timing delay, SDL2 audio resume
-- `game/src/touchcontrols.lua` - Timeout-based joystick reset
-- `frontend/src/index.css` - Improved mobile chat input CSS
-- `CLAUDE.md` - Updated session notes
+- `frontend/src/App.tsx` - Bridge polling, audio resume improvements
+- `game/src/touchcontrols.lua` - noTouchTime-based reset
+- `game/src/sounds.lua` - Enhanced debug logging
+- `frontend/src/index.css` - z-index 1000, larger touch target
 
 ---
 
-**Previous Session (Wallet, Joystick, Chat, Sound Fixes)**:
+**Previous Session (Wallet, Joystick, Chat, Sound Fixes V1 - Did Not Work)**:
 - Fixed wallet staying connected on revisit:
   - Set `autoConnect={false}` on WalletProvider in main.tsx
 - Fixed joystick always visible:
