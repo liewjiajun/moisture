@@ -127,7 +127,7 @@ function Bridge.pollMessages()
     -- Try to get pending messages from JavaScript
     local success, json = pcall(function()
         if js and js.global and js.global.getPendingBridgeMessages then
-            return js.global:getPendingBridgeMessages()
+            return js.global.getPendingBridgeMessages()  -- Use . not : (it's a function, not a method)
         end
         return "[]"
     end)
