@@ -100,9 +100,71 @@ class LuaBridge {
     return this.loveModuleRef;
   }
 
-  // Send data to Lua via message queue (Lua polls for these)
+  // Send data to Lua via Emscripten filesystem bridge
+  // The js global doesn't exist in Love.js, so we use the filesystem as a bridge
   sendToLua(event: string, data: any) {
+    // Also queue for backward compatibility
     this.pendingMessages.push({ event, data });
+
+    // Write to Emscripten filesystem for Love2D to read
+    this.writeToFilesystem(event, data);
+  }
+
+  // Write message to Emscripten's virtual filesystem
+  private writeToFilesystem(event: string, data: any) {
+    const Module = (window as any).Module;
+    if (!Module?.FS) {
+      console.log('[Bridge] Module.FS not available yet');
+      return;
+    }
+
+    const message = JSON.stringify({ event, data, timestamp: Date.now() });
+    console.log('[Bridge] Writing to filesystem:', message);
+
+    // Try to find Love2D's save directory and write there
+    // Love.js typically uses /home/web_user/.local/share/love/<identity>/
+    const possiblePaths = [
+      '/home/web_user/.local/share/love/moisture/bridge_inbox.txt',
+      '/home/web_user/.local/share/love/LOVE/bridge_inbox.txt',
+      '/home/web_user/.local/share/love//bridge_inbox.txt',
+      '/bridge_inbox.txt',
+    ];
+
+    let written = false;
+    for (const path of possiblePaths) {
+      try {
+        // Ensure parent directory exists
+        const dir = path.substring(0, path.lastIndexOf('/'));
+        if (dir) {
+          try {
+            Module.FS.mkdirTree(dir);
+          } catch (e) {
+            // Directory might already exist
+          }
+        }
+
+        Module.FS.writeFile(path, message);
+        console.log('[Bridge] Successfully wrote to:', path);
+        written = true;
+        break;
+      } catch (e) {
+        // Try next path
+        console.log('[Bridge] Failed to write to:', path, e);
+      }
+    }
+
+    if (!written) {
+      console.error('[Bridge] Could not write to any filesystem path');
+      // Debug: List available directories
+      try {
+        console.log('[Bridge] FS root:', Module.FS.readdir('/'));
+        if (Module.FS.analyzePath('/home').exists) {
+          console.log('[Bridge] FS /home:', Module.FS.readdir('/home'));
+        }
+      } catch (e) {
+        console.log('[Bridge] Could not list directories:', e);
+      }
+    }
   }
 
   // Receive events from Lua

@@ -46,6 +46,16 @@ function Bridge.init()
     end
     print("[Bridge] isBrowser = " .. tostring(Bridge.isBrowser))
 
+    -- Debug: Log filesystem paths for bridge setup
+    if Bridge.isBrowser then
+        local saveDir = love.filesystem.getSaveDirectory()
+        local sourceDir = love.filesystem.getSource()
+        local identity = love.filesystem.getIdentity()
+        print("[Bridge] Save directory: " .. tostring(saveDir))
+        print("[Bridge] Source directory: " .. tostring(sourceDir))
+        print("[Bridge] Identity: " .. tostring(identity))
+    end
+
     -- Set up global functions for JS to call
     if Bridge.isBrowser and js then
         -- Expose Lua functions to JavaScript
@@ -114,6 +124,7 @@ function Bridge.init()
 end
 
 -- Poll for pending messages from JavaScript (called every frame)
+-- Uses Emscripten filesystem as bridge since js global doesn't exist in Love.js
 function Bridge.pollMessages()
     if not Bridge.isBrowser then
         -- Only warn once to avoid console spam
@@ -126,47 +137,54 @@ function Bridge.pollMessages()
 
     -- DEBUG: Log once to confirm we're polling
     if not Bridge._loggedPolling then
-        print("[Bridge] pollMessages: Starting to poll...")
-        print("[Bridge] js exists: " .. tostring(js ~= nil))
-        print("[Bridge] js.global exists: " .. tostring(js and js.global ~= nil))
-        local hasFn = js and js.global and js.global.getPendingBridgeMessages
-        print("[Bridge] getPendingBridgeMessages exists: " .. tostring(hasFn ~= nil))
+        print("[Bridge] pollMessages: Using filesystem bridge (js global not available)")
         Bridge._loggedPolling = true
     end
 
-    -- Try to get pending messages from JavaScript
-    local success, json = pcall(function()
-        if js and js.global and js.global.getPendingBridgeMessages then
-            local result = js.global.getPendingBridgeMessages()  -- Use . not : (it's a function, not a method)
-            -- DEBUG: Log non-empty results
-            if result and result ~= "[]" and result ~= "" then
-                print("[Bridge] Got messages: " .. tostring(result))
-            end
-            return result
-        end
-        return "[]"
+    -- Read from filesystem bridge file
+    local content = nil
+    local success, data = pcall(function()
+        return love.filesystem.read("bridge_inbox.txt")
     end)
 
-    if not success then
-        print("[Bridge] ERROR: pcall failed in pollMessages")
-        return
+    if success and data and data ~= "" then
+        content = data
+        -- Clear the file after reading
+        pcall(function()
+            love.filesystem.write("bridge_inbox.txt", "")
+        end)
     end
 
-    if not json or json == "[]" or json == "" then return end
+    if not content then return end
 
-    -- Debug: Log received messages
-    print("[Bridge] Received messages: " .. string.sub(json, 1, 100))
+    -- Debug: Log received content
+    print("[Bridge] Read from filesystem: " .. string.sub(content, 1, 200))
 
-    -- Parse and handle each message
-    local messages = Bridge.parseMessages(json)
-    if not messages then
-        print("[Bridge] ERROR: parseMessages returned nil")
-        return
-    end
-
-    for _, msg in ipairs(messages) do
+    -- Parse the JSON message
+    local msg = Bridge.parseFilesystemMessage(content)
+    if msg then
         Bridge.handleMessage(msg)
     end
+end
+
+-- Parse a single JSON message from the filesystem bridge
+function Bridge.parseFilesystemMessage(json)
+    if not json or json == "" then return nil end
+
+    local msg = { event = nil, data = {} }
+
+    -- Extract event type
+    msg.event = json:match('"event":"([^"]+)"')
+    if not msg.event then return nil end
+
+    -- Parse data based on event type
+    if msg.event == "walletState" then
+        local connected = json:match('"connected":(%w+)')
+        msg.data.connected = (connected == "true")
+        msg.data.address = json:match('"address":"([^"]*)"')
+    end
+
+    return msg
 end
 
 -- Parse message queue JSON: [{event:"x",data:{...}}, ...]
