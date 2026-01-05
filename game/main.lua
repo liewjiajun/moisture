@@ -71,9 +71,9 @@ local shake = {x = 0, y = 0, intensity = 0}
 -- Fonts (pixel-style)
 local fonts = {}
 
--- CRT shader
+-- CRT shader (disabled for web)
 local crtShader = nil
-local crtEnabled = true
+local crtEnabled = false
 
 -- Sauna lounge
 local sauna = nil
@@ -167,17 +167,6 @@ function love.load()
         fonts.medium = defaultFont
         fonts.large = defaultFont
         print("[MOISTURE] Using default font as fallback")
-    end
-
-    print("[MOISTURE] Loading CRT shader...")
-    local success, shader = pcall(function()
-        return love.graphics.newShader("shaders/crt.glsl")
-    end)
-    print("[MOISTURE] Shader loaded:", success)
-    if success then
-        crtShader = shader
-    else
-        print("[MOISTURE] CRT shader failed:", shader)
     end
 
     print("[MOISTURE] Setting up touch handlers...")
@@ -846,9 +835,6 @@ end
 function killEnemy(enemy)
     enemy.alive = false
 
-    -- Haptic feedback on enemy kill (medium vibration)
-    Bridge.triggerHaptic("medium")
-
     -- Score
     score = score + enemy.points
 
@@ -945,9 +931,6 @@ function playerHit()
 
     -- Hit sound
     Sounds.play("hit")
-
-    -- Haptic feedback on damage (heavy vibration)
-    Bridge.triggerHaptic("heavy")
 
     -- Trigger i-frames
     upgrades:triggerIFrames(cards.levels)
@@ -1501,12 +1484,6 @@ function love.textinput(text)
 end
 
 function love.keypressed(key)
-    -- Toggle CRT effect
-    if key == "c" then
-        crtEnabled = not crtEnabled
-        return
-    end
-
     if state == STATE.MENU then
         if key == "space" or key == "return" then
             -- Enter as guest
@@ -1583,9 +1560,6 @@ function tryBlink()
             w, h
         )
         if blinked then
-            -- Haptic feedback on successful blink (light vibration)
-            Bridge.triggerHaptic("light")
-
             -- Blink particles at old position
             for i = 1, 6 do
                 local angle = (i / 6) * math.pi * 2
@@ -1629,6 +1603,13 @@ function love.mousepressed(x, y, button)
         end
     elseif state == STATE.LOUNGE then
         if sauna then
+            -- Check menu button click (go back to main menu)
+            if sauna:isMenuButtonClicked(gx, gy) then
+                Sounds.play("click")
+                state = STATE.MENU
+                return
+            end
+
             -- Check chat input click
             if sauna:isChatInputClicked(gx, gy) then
                 sauna.chatInputActive = true
@@ -1717,6 +1698,13 @@ function love.touchpressed(id, x, y, dx, dy, pressure)
         end
     elseif state == STATE.LOUNGE then
         if sauna then
+            -- Check menu button click (go back to main menu)
+            if sauna:isMenuButtonClicked(gx, gy) then
+                Sounds.play("click")
+                state = STATE.MENU
+                return
+            end
+
             -- Check chat input click
             if sauna:isChatInputClicked(gx, gy) then
                 sauna.chatInputActive = true

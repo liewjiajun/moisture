@@ -546,6 +546,15 @@ function Sauna:draw(playerCharacter, gameTime, fonts, isGuest)
         self:drawDoorPrompt(fonts, gameTime)
     end
 
+    -- Menu button (top-left corner)
+    love.graphics.setColor(0, 0, 0, 0.5)
+    love.graphics.rectangle("fill", 4, 4, 28, 14, 3)
+    love.graphics.setColor(0.7, 0.7, 0.7, 0.8)
+    love.graphics.rectangle("line", 4, 4, 28, 14, 3)
+    love.graphics.setFont(fonts.small)
+    love.graphics.setColor(0.9, 0.9, 0.9, 0.9)
+    love.graphics.printf("MENU", 4, 6, 28, "center")
+
     -- Guest indicator
     if isGuest and not Bridge.walletConnected then
         love.graphics.setFont(fonts.small)
@@ -1182,6 +1191,11 @@ function Sauna:isSendButtonClicked(gx, gy)
     local h = 14
 
     return gx >= sendX and gx <= sendX + 25 and gy >= y and gy <= y + h
+end
+
+-- Check if menu button is clicked (top-left)
+function Sauna:isMenuButtonClicked(gx, gy)
+    return gx >= 4 and gx <= 32 and gy >= 4 and gy <= 18
 end
 
 -- Handle text input

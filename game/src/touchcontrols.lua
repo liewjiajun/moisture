@@ -1,7 +1,5 @@
 -- Mobile Touch Controls
--- Virtual joystick and touch-to-shoot system
-
-local Bridge = require("src.bridge")
+-- Virtual joystick - appears at touch location, works anywhere on screen
 
 local TouchControls = {}
 TouchControls.__index = TouchControls
@@ -50,42 +48,16 @@ end
 function TouchControls:touchpressed(id, x, y)
     -- Convert to game coordinates
     local gx, gy = self.pixelCanvas:toGame(x, y)
-    local w = self.pixelCanvas:getWidth()
-    local h = self.pixelCanvas:getHeight()
 
-    -- Bottom half of screen is control area
-    local controlZoneY = h * 0.6
-
-    if gy > controlZoneY then
-        -- Left side = joystick
-        if gx < w / 2 and not self.joystick.active then
-            self.joystick.active = true
-            self.joystick.touchId = id
-            self.joystick.baseX = gx
-            self.joystick.baseY = gy
-            self.joystick.stickX = gx
-            self.joystick.stickY = gy
-            -- Haptic feedback on joystick activation
-            Bridge.triggerHaptic("light")
-            self.feedback.joystickPulse = 1
-        -- Right side = shoot
-        elseif gx >= w / 2 then
-            self.shoot.active = true
-            self.shoot.touchId = id
-            self.shoot.targetX = gx
-            self.shoot.targetY = gy
-            -- Haptic feedback on shoot touch
-            Bridge.triggerHaptic("light")
-            self.feedback.shootPulse = 1
-        end
-    else
-        -- Top area = aim and shoot
-        self.shoot.active = true
-        self.shoot.touchId = id
-        self.shoot.targetX = gx
-        self.shoot.targetY = gy
-        Bridge.triggerHaptic("light")
-        self.feedback.shootPulse = 1
+    -- Any touch becomes joystick - appears at touch location
+    if not self.joystick.active then
+        self.joystick.active = true
+        self.joystick.touchId = id
+        self.joystick.baseX = gx
+        self.joystick.baseY = gy
+        self.joystick.stickX = gx
+        self.joystick.stickY = gy
+        self.feedback.joystickPulse = 1
     end
 end
 
@@ -180,9 +152,10 @@ function TouchControls:isShooting()
 end
 
 function TouchControls:draw()
-    if not self.isMobile and not self.joystick.active then return end
+    -- Only draw when actively touching
+    if not self.joystick.active then return end
 
-    local alpha = self.joystick.active and 0.6 or 0.3
+    local alpha = 0.6
 
     -- Pulse effect on activation
     local pulseScale = 1 + self.feedback.joystickPulse * 0.3
@@ -213,42 +186,8 @@ function TouchControls:draw()
     end
 
     -- Draw joystick stick
-    local stickAlpha = self.joystick.active and 0.9 or 0.5
-    love.graphics.setColor(1, 1, 1, stickAlpha)
+    love.graphics.setColor(1, 1, 1, 0.9)
     love.graphics.circle("fill", self.joystick.stickX, self.joystick.stickY, self.joystick.stickRadius)
-
-    -- Draw shoot indicator
-    if self.shoot.active then
-        -- Pulse effect on shoot activation
-        local shootPulseScale = 1 + self.feedback.shootPulse * 0.5
-        local shootPulseAlpha = self.feedback.shootPulse * 0.6
-
-        if shootPulseAlpha > 0 then
-            love.graphics.setColor(1, 0.3, 0.3, shootPulseAlpha)
-            love.graphics.circle("line", self.shoot.targetX, self.shoot.targetY, 10 * shootPulseScale)
-        end
-
-        love.graphics.setColor(1, 0.3, 0.3, 0.5)
-        love.graphics.circle("fill", self.shoot.targetX, self.shoot.targetY, 6)
-        love.graphics.setColor(1, 1, 1, 0.8)
-        love.graphics.circle("line", self.shoot.targetX, self.shoot.targetY, 6)
-    end
-end
-
-function TouchControls:drawHint()
-    local w = self.pixelCanvas:getWidth()
-    local h = self.pixelCanvas:getHeight()
-
-    love.graphics.setColor(1, 1, 1, 0.2)
-
-    -- Control zone divider line
-    local controlZoneY = h * 0.6
-    love.graphics.line(0, controlZoneY, w, controlZoneY)
-
-    -- Bottom zone labels
-    love.graphics.setColor(1, 1, 1, 0.3)
-    love.graphics.printf("MOVE", 0, h - 25, w / 2, "center")
-    love.graphics.printf("FIRE", w / 2, h - 25, w / 2, "center")
 end
 
 return TouchControls

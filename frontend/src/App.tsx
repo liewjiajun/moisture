@@ -269,10 +269,13 @@ function App() {
   // Handle wallet connect request from Lua
   useEffect(() => {
     const unsubscribe = luaBridge.on('requestWalletConnect', () => {
-      // Trigger wallet modal - this is handled by ConnectButton
-      const connectBtn = document.querySelector('[data-testid="connect-button"]') as HTMLButtonElement;
-      if (connectBtn) {
-        connectBtn.click();
+      // Find the ConnectButton inside the wallet-overlay div
+      const walletOverlay = document.querySelector('.wallet-overlay');
+      if (walletOverlay) {
+        const connectBtn = walletOverlay.querySelector('button') as HTMLButtonElement;
+        if (connectBtn) {
+          connectBtn.click();
+        }
       }
     });
 
