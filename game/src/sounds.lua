@@ -60,15 +60,20 @@ function Sounds.play(name, volumeOverride, pitchOverride)
 
     local def = Sounds.definitions[name]
     local volume = (volumeOverride or def.volume) * Sounds.config.sfxVolume * Sounds.config.masterVolume
-    local pitch = pitchOverride or 1.0
 
-    -- Clone for overlapping sounds
-    local clone = source:clone()
-    clone:setVolume(volume)
-    clone:setPitch(pitch)
-    clone:play()
+    -- Wrap audio operations in pcall for Love.js compatibility
+    local success, clone = pcall(function()
+        local c = source:clone()
+        c:setVolume(volume)
+        -- Skip setPitch if not supported (Love.js/WebAudio limitation)
+        if pitchOverride and pitchOverride ~= 1.0 then
+            pcall(function() c:setPitch(pitchOverride) end)
+        end
+        c:play()
+        return c
+    end)
 
-    return clone
+    return success and clone or nil
 end
 
 -- Play with random pitch variation (for variety)

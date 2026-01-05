@@ -62,9 +62,8 @@ local crtEnabled = true
 local sauna = nil
 
 function love.load()
-    -- Pixel-perfect rendering
+    -- Pixel-perfect rendering (setLineStyle removed - not supported in WebGL)
     love.graphics.setDefaultFilter("nearest", "nearest")
-    love.graphics.setLineStyle("rough")
 
     -- Initialize systems
     pixelCanvas = PixelCanvas.new()
@@ -74,10 +73,19 @@ function love.load()
     Bridge.init()
     Sounds.load()
 
-    -- Create pixel fonts
-    fonts.small = love.graphics.newFont(8)
-    fonts.medium = love.graphics.newFont(12)
-    fonts.large = love.graphics.newFont(16)
+    -- Create pixel fonts with fallback for Love.js
+    local fontSuccess = pcall(function()
+        fonts.small = love.graphics.newFont(8)
+        fonts.medium = love.graphics.newFont(12)
+        fonts.large = love.graphics.newFont(16)
+    end)
+    if not fontSuccess then
+        local defaultFont = love.graphics.getFont()
+        fonts.small = defaultFont
+        fonts.medium = defaultFont
+        fonts.large = defaultFont
+        print("[Fonts] Using default font as fallback")
+    end
 
     -- Load CRT shader
     local success, shader = pcall(function()
@@ -94,8 +102,24 @@ function love.load()
         startGame()
     end
 
-    -- Initialize sauna after canvas is ready
-    sauna = Sauna.new(pixelCanvas:getWidth(), pixelCanvas:getHeight())
+    -- Initialize sauna with fallback for Love.js
+    local saunaSuccess, saunaResult = pcall(function()
+        return Sauna.new(pixelCanvas:getWidth(), pixelCanvas:getHeight())
+    end)
+    if saunaSuccess then
+        sauna = saunaResult
+    else
+        print("[Sauna] Failed to create:", saunaResult)
+        sauna = {
+            update = function() end,
+            draw = function() end,
+            touchpressed = function() end,
+            touchmoved = function() end,
+            touchreleased = function() end,
+            keypressed = function() end,
+            textinput = function() end,
+        }
+    end
 end
 
 function love.resize(w, h)
