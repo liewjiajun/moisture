@@ -144,6 +144,9 @@ function love.load()
     end)
     if not bridgeSuccess then
         print("[MOISTURE] Bridge FAILED:", bridgeErr)
+    else
+        -- Send initial game state to React
+        Bridge.setGameState(state)
     end
 
     print("[MOISTURE] Loading Sounds...")
@@ -260,6 +263,7 @@ function updateMenu(dt)
     if Bridge.walletConnected then
         isGuest = false
         state = STATE.LOUNGE
+        Bridge.setGameState(state)
         return
     end
 
@@ -321,6 +325,7 @@ function updateCountdown(dt)
 
     if countdownTimer <= 0 then
         state = STATE.GAME
+        Bridge.setGameState(state)
         -- Spawn initial enemies when countdown ends
         for i = 1, 2 do
             spawnEnemy()
@@ -337,6 +342,7 @@ function updateGame(dt)
         cardTimer = 0
         if cards:showSelection() then
             state = STATE.CARD_SELECT
+            Bridge.setGameState(state)
             return
         end
     end
@@ -993,6 +999,7 @@ function beginGameCountdown()
     -- Start countdown
     countdownTimer = 3.5
     state = STATE.COUNTDOWN
+    Bridge.setGameState(state)
 end
 
 function startGame()
@@ -1004,6 +1011,7 @@ function startGame()
     else
         -- Countdown finished, transition to game
         state = STATE.GAME
+        Bridge.setGameState(state)
 
         -- Initial enemies
         for i = 1, 2 do
@@ -1014,6 +1022,7 @@ end
 
 function playerDeath()
     state = STATE.DEATH
+    Bridge.setGameState(state)
     shake.intensity = 10
 
     -- Death sound
@@ -1480,6 +1489,7 @@ function love.keypressed(key)
             -- Enter as guest
             isGuest = true
             state = STATE.LOUNGE
+            Bridge.setGameState(state)
         elseif key == "w" then
             -- Connect wallet
             Bridge.requestWalletConnect()
@@ -1515,10 +1525,12 @@ function love.keypressed(key)
         if selectedCard then
             applyCardEffect(selectedCard)
             state = STATE.GAME
+            Bridge.setGameState(state)
         end
     elseif state == STATE.DEATH then
         if key == "space" or key == "return" then
             state = STATE.LOUNGE
+            Bridge.setGameState(state)
         end
     elseif state == STATE.GAME then
         if key == "escape" then
@@ -1583,6 +1595,7 @@ function love.mousepressed(x, y, button)
             Sounds.play("click")
             isGuest = true
             state = STATE.LOUNGE
+            Bridge.setGameState(state)
             return
         end
     elseif state == STATE.LOUNGE then
@@ -1591,6 +1604,7 @@ function love.mousepressed(x, y, button)
             if sauna:isMenuButtonClicked(gx, gy) then
                 Sounds.play("click")
                 state = STATE.MENU
+                Bridge.setGameState(state)
                 return
             end
 
@@ -1637,9 +1651,11 @@ function love.mousepressed(x, y, button)
         if selectedCard then
             applyCardEffect(selectedCard)
             state = STATE.GAME
+            Bridge.setGameState(state)
         end
     elseif state == STATE.DEATH then
         state = STATE.LOUNGE
+        Bridge.setGameState(state)
     elseif state == STATE.GAME then
         -- Right click = blink
         if button == 2 then
@@ -1671,6 +1687,7 @@ function love.touchpressed(id, x, y, dx, dy, pressure)
             Sounds.play("click")
             isGuest = true
             state = STATE.LOUNGE
+            Bridge.setGameState(state)
             return
         end
     elseif state == STATE.LOUNGE then
@@ -1679,6 +1696,7 @@ function love.touchpressed(id, x, y, dx, dy, pressure)
             if sauna:isMenuButtonClicked(gx, gy) then
                 Sounds.play("click")
                 state = STATE.MENU
+                Bridge.setGameState(state)
                 return
             end
 
@@ -1727,9 +1745,11 @@ function love.touchpressed(id, x, y, dx, dy, pressure)
         if selectedCard then
             applyCardEffect(selectedCard)
             state = STATE.GAME
+            Bridge.setGameState(state)
         end
     elseif state == STATE.DEATH then
         state = STATE.LOUNGE
+        Bridge.setGameState(state)
     elseif state == STATE.GAME then
         -- Tap on right side = blink
         local controlZoneY = h * 0.6

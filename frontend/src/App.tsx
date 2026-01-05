@@ -30,6 +30,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: string }[]>([]);
+  const [gameState, setGameState] = useState<string>('menu'); // Track Lua game state
 
   // Loading timeout (45 seconds - WASM files are large)
   useEffect(() => {
@@ -133,9 +134,11 @@ function App() {
       }
     };
 
-    // Prevent pull-to-refresh
+    // Prevent pull-to-refresh (only on canvas, not UI elements)
     const preventPullToRefresh = (e: TouchEvent) => {
-      if (window.scrollY === 0 && e.touches.length === 1) {
+      const target = e.target as HTMLElement;
+      // Only prevent on canvas, allow clicks on buttons and other UI
+      if (target.tagName === 'CANVAS' && window.scrollY === 0 && e.touches.length === 1) {
         e.preventDefault();
       }
     };
@@ -150,8 +153,10 @@ function App() {
       lastTap = now;
     };
 
-    // Prevent edge swipe navigation (iOS Safari)
+    // Prevent edge swipe navigation (iOS Safari) - only on canvas
     const preventEdgeSwipe = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName !== 'CANVAS') return; // Allow UI elements
       const touch = e.touches[0];
       const edgeThreshold = 30;
       if (touch.clientX < edgeThreshold || touch.clientX > window.innerWidth - edgeThreshold) {
@@ -350,6 +355,17 @@ function App() {
     return unsubscribe;
   }, [account, sendMessage]);
 
+  // Track game state from Lua
+  useEffect(() => {
+    const unsubscribe = luaBridge.on('gameStateChanged', (data: any) => {
+      if (data.state) {
+        setGameState(data.state);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
   // Handle emergency exit
   const handleExit = useCallback(() => {
     if (isPlaying) {
@@ -399,7 +415,7 @@ function App() {
       <GameCanvas onLoad={() => { setIsLoading(false); setLoadError(null); }} />
 
       {/* Wallet connect button - centered on menu screen when not connected */}
-      {!account && !isPlaying && !isLoading && !loadError && (
+      {!account && gameState === 'menu' && !isLoading && !loadError && (
         <div className="overlay wallet-overlay menu-center">
           <ConnectButton />
         </div>

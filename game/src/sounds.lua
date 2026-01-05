@@ -29,16 +29,12 @@ Sounds.definitions = {
 
 -- Load a single sound (returns nil if file doesn't exist)
 local function loadSound(path)
-    -- Check if file exists FIRST to avoid Love.js crash on missing files
-    local info = love.filesystem.getInfo(path)
-    if not info then
-        return nil
-    end
-
+    -- Skip getInfo check - doesn't work reliably in Love.js
+    -- Just try to load and let pcall handle errors
     local success, source = pcall(function()
         return love.audio.newSource(path, "static")
     end)
-    if success then
+    if success and source then
         return source
     end
     return nil

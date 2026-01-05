@@ -145,6 +145,11 @@ function Bridge.sendChatMessage(message)
     })
 end
 
+function Bridge.setGameState(newState)
+    Bridge.gameState = newState
+    Bridge.sendToJS("gameStateChanged", {state = newState})
+end
+
 function Bridge.triggerHaptic(intensity)
     -- Trigger haptic feedback via JavaScript
     -- intensity: "light", "medium", or "heavy"

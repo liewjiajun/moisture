@@ -427,7 +427,29 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Bug Fixes: Sound, Wallet, Difficulty)**:
+**Latest Session (ConnectButton Fix, Sound Fix)**:
+- Fixed ConnectButton not responding to taps:
+  - Root cause: `preventPullToRefresh` was blocking ALL single-finger touches
+  - Solution: Only call `preventDefault()` when target is CANVAS element
+- Fixed ConnectButton staying visible in LOUNGE/DEATH states:
+  - Added game state bridge from Lua to React
+  - `Bridge.setGameState()` now called on every state transition
+  - React listens for 'gameStateChanged' events
+  - ConnectButton only shows when `gameState === 'menu'`
+- Fixed sound loading in Love.js:
+  - Removed `love.filesystem.getInfo()` check (doesn't work in Love.js virtual FS)
+  - Now tries direct load with pcall for error handling
+
+**Files Modified**:
+- `frontend/src/App.tsx` - Fixed touch handlers, added gameState tracking
+- `game/src/bridge.lua` - Added setGameState function
+- `game/main.lua` - Added Bridge.setGameState() calls on all state changes
+- `game/src/sounds.lua` - Removed getInfo check for Love.js compatibility
+- `CLAUDE.md` - Updated session notes
+
+---
+
+**Previous Session (Bug Fixes: Sound, Wallet, Difficulty)**:
 - Fixed wallet connect: Now shows real React ConnectButton in center of menu
 - Removed Lua-drawn CONNECT WALLET button (was causing race condition)
 - Reduced gameplay difficulty:
@@ -436,12 +458,6 @@ _Add notes here during development sessions to preserve context across auto-comp
   - Ring bullet count capped at 10
 - Rebuilt Love.js with sound files
 - Added CRITICAL REMINDERS at top of CLAUDE.md
-
-**Files Modified**:
-- `frontend/src/App.tsx` - Show real ConnectButton, removed requestWalletConnect handler
-- `frontend/src/index.css` - Styled centered ConnectButton for menu screen
-- `game/main.lua` - Removed Lua wallet button, reduced difficulty (3 changes)
-- `CLAUDE.md` - Added reminder section
 
 ---
 
