@@ -1,4 +1,4 @@
--- INCREMENTAL TEST - Step 3b: Skip Sounds
+-- INCREMENTAL TEST - Step 4: Cards, Upgrades, Sauna
 print("[TEST] Starting...")
 
 local function safeRequire(name)
@@ -28,6 +28,9 @@ print("[TEST] All requires done")
 local pixelCanvas
 local touchControls
 local player
+local cards
+local upgrades
+local sauna
 
 function love.load()
     print("[TEST] love.load called")
@@ -40,7 +43,6 @@ function love.load()
     touchControls = TouchControls.new(pixelCanvas)
     print("[TEST] TouchControls created")
 
-    -- SKIP SOUNDS - they cause issues with missing files
     print("[TEST] Skipping Sounds.load()")
 
     print("[TEST] Creating player character...")
@@ -49,17 +51,29 @@ function love.load()
         y = 250,
         character = Character.new(12345),
     }
-    print("[TEST] Player created: " .. tostring(player.character))
+    print("[TEST] Player created")
 
-    print("[TEST] love.load complete")
+    print("[TEST] Creating Cards...")
+    cards = Cards.new()
+    print("[TEST] Cards created")
+
+    print("[TEST] Creating Upgrades...")
+    upgrades = Upgrades.new()
+    print("[TEST] Upgrades created")
+
+    print("[TEST] Creating Sauna...")
+    sauna = Sauna.new(pixelCanvas)
+    print("[TEST] Sauna created")
+
+    print("[TEST] love.load complete!")
 end
 
 function love.update(dt)
-    -- Just log first frame
+    -- Nothing yet
 end
 
 function love.draw()
-    love.graphics.clear(1, 0, 1)  -- Magenta = Step 3b works
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("No Sounds - Character OK!", 10, 100)
+    love.graphics.clear(1, 1, 0)  -- Yellow = Step 4 works
+    love.graphics.setColor(0, 0, 0)
+    love.graphics.print("Cards + Upgrades + Sauna OK!", 10, 100)
 end
