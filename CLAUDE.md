@@ -34,6 +34,15 @@ loveScript.src = '/game/love.js';   // NOT '/love.js'
 2. Delete any game.js, game.data, love.js from `frontend/public/` root
 3. Check GameCanvas.tsx paths point to `/game/` subdirectory
 
+**Module.locateFile is REQUIRED:**
+```typescript
+window.Module = {
+  // ... other config ...
+  locateFile: (path: string) => '/game/' + path,  // CRITICAL!
+};
+```
+Without this, Emscripten looks for game.data/love.wasm at `/` instead of `/game/`.
+
 ---
 
 ## Current Sprint: Pre-Deployment Polish (COMPLETED)
