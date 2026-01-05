@@ -111,50 +111,34 @@ class LuaBridge {
   }
 
   // Write message to Emscripten's virtual filesystem
-  private writeToFilesystem(event: string, data: any, retryCount = 0) {
-    // Try multiple possible locations for FS
-    const Module = (window as any).Module;
-    const FS = Module?.FS || (window as any).FS;
-
-    // Debug on first and 10th retry
-    if (retryCount === 0 || retryCount === 10) {
-      console.log('[Bridge v16] Looking for FS...');
-      console.log('[Bridge v16] Module:', !!Module);
-      console.log('[Bridge v16] Module.FS:', !!Module?.FS);
-      console.log('[Bridge v16] window.FS:', !!(window as any).FS);
-      if (Module) {
-        const keys = Object.keys(Module);
-        console.log('[Bridge v16] Module has', keys.length, 'keys');
-        console.log('[Bridge v16] Module keys (first 30):', keys.slice(0, 30).join(', '));
-      }
-    }
+  private writeToFilesystem(event: string, data: any) {
+    // Check for LoveFS (exposed after runtime initialization)
+    const FS = (window as any).LoveFS || (window as any).Module?.FS;
 
     if (!FS) {
-      if (retryCount < 100) {
-        setTimeout(() => this.writeToFilesystem(event, data, retryCount + 1), 100);
-      } else {
-        console.error('[Bridge v16] FS never became available after 10s');
-        if (Module) {
-          console.log('[Bridge v16] Final Module keys:', Object.keys(Module).join(', '));
-        }
+      // Queue the message for later processing
+      console.log('[Bridge v18] FS not ready, queueing message:', event);
+      if (!(window as any).pendingBridgeWrites) {
+        (window as any).pendingBridgeWrites = [];
       }
+      (window as any).pendingBridgeWrites.push({ event, data });
       return;
     }
 
     const message = JSON.stringify({ event, data, timestamp: Date.now() });
-    console.log('[Bridge v16] FS found! Writing:', message);
+    console.log('[Bridge v18] Writing to filesystem:', event);
 
     try {
-      // Create directory if needed
+      // Create directory if needed (may already exist)
       try { FS.mkdir('/home'); } catch (e) {}
       try { FS.mkdir('/home/web_user'); } catch (e) {}
       try { FS.mkdir('/home/web_user/love'); } catch (e) {}
       try { FS.mkdir('/home/web_user/love/moisture'); } catch (e) {}
 
       FS.writeFile('/home/web_user/love/moisture/bridge_inbox.txt', message);
-      console.log('[Bridge v16] Successfully wrote to filesystem!');
+      console.log('[Bridge v18] Successfully wrote to filesystem!');
     } catch (e) {
-      console.error('[Bridge v16] Failed to write:', e);
+      console.error('[Bridge v18] Failed to write:', e);
     }
   }
 

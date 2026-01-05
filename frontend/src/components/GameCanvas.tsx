@@ -112,6 +112,63 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
 
           onRuntimeInitialized: () => {
             console.log('Love.js runtime initialized');
+            // Try to find FS from multiple locations
+            const FS = window.Module?.FS || (window as any).FS || (window as any).Module?.['FS'];
+
+            console.log('[GameCanvas v18] Looking for FS...');
+            console.log('[GameCanvas v18] Module.FS:', !!window.Module?.FS);
+            console.log('[GameCanvas v18] window.FS:', !!(window as any).FS);
+
+            if (window.Module) {
+              // Log all keys that might be filesystem related
+              const keys = Object.keys(window.Module).filter(k =>
+                k.includes('FS') || k.includes('file') || k.includes('File') || k === 'FS_createPath'
+              );
+              console.log('[GameCanvas v18] FS-related Module keys:', keys.join(', '));
+            }
+
+            if (FS) {
+              (window as any).LoveFS = FS;
+              console.log('[GameCanvas v18] LoveFS exposed globally');
+
+              // Ensure directories exist
+              try { FS.mkdir('/home'); } catch (e) {}
+              try { FS.mkdir('/home/web_user'); } catch (e) {}
+              try { FS.mkdir('/home/web_user/love'); } catch (e) {}
+              try { FS.mkdir('/home/web_user/love/moisture'); } catch (e) {}
+
+              // Process any queued messages
+              if ((window as any).pendingBridgeWrites) {
+                const pending = (window as any).pendingBridgeWrites;
+                (window as any).pendingBridgeWrites = [];
+                console.log('[GameCanvas v18] Processing', pending.length, 'queued bridge writes');
+                pending.forEach((write: { event: string; data: any }) => {
+                  try {
+                    const message = JSON.stringify({ event: write.event, data: write.data, timestamp: Date.now() });
+                    FS.writeFile('/home/web_user/love/moisture/bridge_inbox.txt', message);
+                    console.log('[GameCanvas v18] Wrote queued message:', write.event);
+                  } catch (e) {
+                    console.error('[GameCanvas v18] Failed to write queued message:', e);
+                  }
+                });
+              }
+            } else {
+              console.error('[GameCanvas v18] FS not available after runtime init!');
+              // Last resort: try to poll for it
+              let fsAttempts = 0;
+              const pollFS = setInterval(() => {
+                fsAttempts++;
+                const delayedFS = window.Module?.FS || (window as any).FS;
+                if (delayedFS) {
+                  clearInterval(pollFS);
+                  (window as any).LoveFS = delayedFS;
+                  console.log('[GameCanvas v18] LoveFS found after', fsAttempts * 100, 'ms delay');
+                } else if (fsAttempts > 50) {
+                  clearInterval(pollFS);
+                  console.error('[GameCanvas v18] Gave up looking for FS after 5s');
+                }
+              }, 100);
+            }
           },
 
           // Error handlers to catch WASM/Emscripten errors
