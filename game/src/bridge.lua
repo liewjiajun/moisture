@@ -147,7 +147,8 @@ function Bridge.pollMessages()
         return love.filesystem.read("bridge_inbox.txt")
     end)
 
-    if success and data and data ~= "" then
+    -- Check if we got valid string data
+    if success and data and type(data) == "string" and data ~= "" then
         content = data
         -- Clear the file after reading
         pcall(function()
@@ -155,10 +156,13 @@ function Bridge.pollMessages()
         end)
     end
 
-    if not content then return end
+    -- Exit early if no content
+    if not content or type(content) ~= "string" or content == "" then
+        return
+    end
 
-    -- Debug: Log received content
-    print("[Bridge] Read from filesystem: " .. string.sub(content, 1, 200))
+    -- Debug: Log received content (safe now that we verified it's a string)
+    print("[Bridge] Read from filesystem: " .. string.sub(tostring(content), 1, 200))
 
     -- Parse the JSON message
     local msg = Bridge.parseFilesystemMessage(content)

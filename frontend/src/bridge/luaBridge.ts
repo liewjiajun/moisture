@@ -121,13 +121,9 @@ class LuaBridge {
     const message = JSON.stringify({ event, data, timestamp: Date.now() });
     console.log('[Bridge] Writing to filesystem:', message);
 
-    // Try to find Love2D's save directory and write there
-    // Love.js typically uses /home/web_user/.local/share/love/<identity>/
+    // Love2D's save directory (from Lua logs: /home/web_user/love/moisture)
     const possiblePaths = [
-      '/home/web_user/.local/share/love/moisture/bridge_inbox.txt',
-      '/home/web_user/.local/share/love/LOVE/bridge_inbox.txt',
-      '/home/web_user/.local/share/love//bridge_inbox.txt',
-      '/bridge_inbox.txt',
+      '/home/web_user/love/moisture/bridge_inbox.txt',  // Correct path from Lua
     ];
 
     let written = false;
