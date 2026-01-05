@@ -81,6 +81,23 @@ local sauna = nil
 -- Debug frame counter
 local frameCount = 0
 
+-- Custom error handler to capture Love.js crashes and show in console
+function love.errorhandler(msg)
+    print("[MOISTURE] ========== ERROR ==========")
+    print("[MOISTURE] " .. tostring(msg))
+    print("[MOISTURE] ========== TRACEBACK ==========")
+    print(debug.traceback())
+    print("[MOISTURE] =============================")
+
+    -- Return a draw function that shows the error on screen
+    return function()
+        love.graphics.clear(0.2, 0, 0)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print("ERROR: " .. tostring(msg):sub(1, 200), 10, 10)
+        love.graphics.print("Check console for traceback", 10, 40)
+    end
+end
+
 function love.load()
     print("[MOISTURE] love.load() starting...")
 
@@ -205,7 +222,17 @@ end
 function love.update(dt)
     frameCount = frameCount + 1
     if frameCount <= 5 then
-        print("[MOISTURE] love.update() frame " .. frameCount)
+        print("[MOISTURE] love.update() frame " .. frameCount .. " state=" .. tostring(state))
+    end
+
+    -- Nil safety checks
+    if not pixelCanvas then
+        print("[MOISTURE] ERROR: pixelCanvas is nil in update!")
+        return
+    end
+    if not touchControls then
+        print("[MOISTURE] ERROR: touchControls is nil in update!")
+        return
     end
 
     gameTime = gameTime + dt
@@ -1034,7 +1061,16 @@ end
 
 function love.draw()
     if frameCount <= 5 then
-        print("[MOISTURE] love.draw() frame " .. frameCount)
+        print("[MOISTURE] love.draw() frame " .. frameCount .. " state=" .. tostring(state))
+    end
+
+    -- Nil safety check
+    if not pixelCanvas then
+        print("[MOISTURE] ERROR: pixelCanvas is nil in draw!")
+        love.graphics.clear(0.3, 0, 0)
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.print("ERROR: pixelCanvas is nil", 10, 10)
+        return
     end
 
     pixelCanvas:startDraw()
