@@ -43,6 +43,27 @@ window.Module = {
 ```
 Without this, Emscripten looks for game.data/love.wasm at `/` instead of `/game/`.
 
+### ⚠️ LUA CODE DEPLOYMENT REMINDER ⚠️
+
+**After ANY change to `game/src/*.lua` files, you MUST rebuild:**
+
+```bash
+npx love.js -c game frontend/public/game --title "Moisture"
+```
+
+**Why this matters:**
+1. Lua code is packaged into `game.data` at build time
+2. `game.js` contains a UUID that identifies this build
+3. Browser caches `game.data` in IndexedDB by UUID
+4. **If you don't rebuild, users get OLD Lua code from IndexedDB cache forever!**
+
+**Correct deployment flow for Lua changes:**
+1. Edit `game/src/*.lua`
+2. Run `npx love.js -c game frontend/public/game --title "Moisture"`
+3. Verify new UUID: `grep -o 'package_uuid":"[^"]*"' frontend/public/game/game.js`
+4. `git add . && git commit && git push`
+5. User refreshes → sees "loading game.data from remote" → gets new code
+
 ---
 
 ## Current Sprint: Pre-Deployment Polish (COMPLETED)
