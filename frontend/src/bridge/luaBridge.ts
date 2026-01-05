@@ -112,71 +112,49 @@ class LuaBridge {
 
   // Write message to Emscripten's virtual filesystem
   private writeToFilesystem(event: string, data: any, retryCount = 0) {
+    // Try multiple possible locations for FS
     const Module = (window as any).Module;
+    const FS = Module?.FS || (window as any).FS;
 
-    // Debug: Log what's available on Module
+    // Debug on first and 10th retry
     if (retryCount === 0 || retryCount === 10) {
-      console.log('[Bridge] Module exists:', !!Module);
+      console.log('[Bridge v16] Looking for FS...');
+      console.log('[Bridge v16] Module:', !!Module);
+      console.log('[Bridge v16] Module.FS:', !!Module?.FS);
+      console.log('[Bridge v16] window.FS:', !!(window as any).FS);
       if (Module) {
-        console.log('[Bridge] Module keys:', Object.keys(Module).slice(0, 20));
-        console.log('[Bridge] Module.FS:', Module.FS);
-        console.log('[Bridge] Module.HEAPU8:', !!Module.HEAPU8);
+        const keys = Object.keys(Module);
+        console.log('[Bridge v16] Module has', keys.length, 'keys');
+        console.log('[Bridge v16] Module keys (first 30):', keys.slice(0, 30).join(', '));
       }
     }
 
-    if (!Module?.FS) {
-      if (retryCount < 100) {  // Retry for up to 10 seconds
+    if (!FS) {
+      if (retryCount < 100) {
         setTimeout(() => this.writeToFilesystem(event, data, retryCount + 1), 100);
       } else {
-        console.error('[Bridge] Module.FS never became available after 10s');
-        // Debug: Final dump of Module
-        console.log('[Bridge] Final Module keys:', Module ? Object.keys(Module) : 'Module is null');
+        console.error('[Bridge v16] FS never became available after 10s');
+        if (Module) {
+          console.log('[Bridge v16] Final Module keys:', Object.keys(Module).join(', '));
+        }
       }
       return;
     }
 
     const message = JSON.stringify({ event, data, timestamp: Date.now() });
-    console.log('[Bridge] Writing to filesystem:', message);
+    console.log('[Bridge v16] FS found! Writing:', message);
 
-    // Love2D's save directory (from Lua logs: /home/web_user/love/moisture)
-    const possiblePaths = [
-      '/home/web_user/love/moisture/bridge_inbox.txt',  // Correct path from Lua
-    ];
+    try {
+      // Create directory if needed
+      try { FS.mkdir('/home'); } catch (e) {}
+      try { FS.mkdir('/home/web_user'); } catch (e) {}
+      try { FS.mkdir('/home/web_user/love'); } catch (e) {}
+      try { FS.mkdir('/home/web_user/love/moisture'); } catch (e) {}
 
-    let written = false;
-    for (const path of possiblePaths) {
-      try {
-        // Ensure parent directory exists
-        const dir = path.substring(0, path.lastIndexOf('/'));
-        if (dir) {
-          try {
-            Module.FS.mkdirTree(dir);
-          } catch (e) {
-            // Directory might already exist
-          }
-        }
-
-        Module.FS.writeFile(path, message);
-        console.log('[Bridge] Successfully wrote to:', path);
-        written = true;
-        break;
-      } catch (e) {
-        // Try next path
-        console.log('[Bridge] Failed to write to:', path, e);
-      }
-    }
-
-    if (!written) {
-      console.error('[Bridge] Could not write to any filesystem path');
-      // Debug: List available directories
-      try {
-        console.log('[Bridge] FS root:', Module.FS.readdir('/'));
-        if (Module.FS.analyzePath('/home').exists) {
-          console.log('[Bridge] FS /home:', Module.FS.readdir('/home'));
-        }
-      } catch (e) {
-        console.log('[Bridge] Could not list directories:', e);
-      }
+      FS.writeFile('/home/web_user/love/moisture/bridge_inbox.txt', message);
+      console.log('[Bridge v16] Successfully wrote to filesystem!');
+    } catch (e) {
+      console.error('[Bridge v16] Failed to write:', e);
     }
   }
 
