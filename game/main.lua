@@ -47,9 +47,9 @@ function love.load()
     player = {
         x = 90,
         y = 250,
-        sprite = Character.generate(12345),
+        character = Character.new(12345),
     }
-    print("[TEST] Player created: " .. tostring(player.sprite))
+    print("[TEST] Player created: " .. tostring(player.character))
 
     print("[TEST] love.load complete")
 end
