@@ -113,12 +113,24 @@ class LuaBridge {
   // Write message to Emscripten's virtual filesystem
   private writeToFilesystem(event: string, data: any, retryCount = 0) {
     const Module = (window as any).Module;
+
+    // Debug: Log what's available on Module
+    if (retryCount === 0 || retryCount === 10) {
+      console.log('[Bridge] Module exists:', !!Module);
+      if (Module) {
+        console.log('[Bridge] Module keys:', Object.keys(Module).slice(0, 20));
+        console.log('[Bridge] Module.FS:', Module.FS);
+        console.log('[Bridge] Module.HEAPU8:', !!Module.HEAPU8);
+      }
+    }
+
     if (!Module?.FS) {
-      if (retryCount < 50) {  // Retry for up to 5 seconds
-        console.log('[Bridge] Module.FS not available yet, retrying in 100ms...');
+      if (retryCount < 100) {  // Retry for up to 10 seconds
         setTimeout(() => this.writeToFilesystem(event, data, retryCount + 1), 100);
       } else {
-        console.error('[Bridge] Module.FS never became available');
+        console.error('[Bridge] Module.FS never became available after 10s');
+        // Debug: Final dump of Module
+        console.log('[Bridge] Final Module keys:', Module ? Object.keys(Module) : 'Module is null');
       }
       return;
     }
