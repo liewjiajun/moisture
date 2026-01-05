@@ -463,7 +463,25 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Bug Fix V5 - Duplicate Game Files)**:
+**Latest Session (Wallet→Sauna Fix v9 - Cache Busting)**:
+Fixed wallet not transitioning to sauna after connect.
+
+**Root Cause Chain**:
+1. Lua used `:` instead of `.` for JS function call in pollMessages
+2. `js.global:getPendingBridgeMessages()` passes js.global as first arg (wrong!)
+3. Fixed to `js.global.getPendingBridgeMessages()` (plain function call)
+4. But browser HTTP cache served OLD game.js with OLD UUID
+5. OLD UUID matched IndexedDB cache → loaded OLD game.data without fix
+
+**Solution**: Added `?v=timestamp` cache-busting to script URLs in GameCanvas.tsx
+
+**Files Modified**:
+- `game/src/bridge.lua:130` - Fixed `:` to `.` for getPendingBridgeMessages call
+- `frontend/src/components/GameCanvas.tsx` - Added cache-busting query strings
+
+---
+
+**Previous Session (Bug Fix V5 - Duplicate Game Files)**:
 After V3/V4 still showed old code, discovered ROOT CAUSE: **duplicate game files**.
 
 **Problem**: There were TWO sets of game files:
