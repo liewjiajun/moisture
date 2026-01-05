@@ -122,7 +122,7 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
         // Load game.js first (sets up data file loader)
         console.log('Loading game.js...');
         const gameScript = document.createElement('script');
-        gameScript.src = '/game.js';
+        gameScript.src = '/game/game.js';
 
         gameScript.onerror = (e) => {
           console.error('Failed to load game.js:', e);
@@ -134,7 +134,7 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           console.log('game.js loaded, now loading love.js...');
 
           const loveScript = document.createElement('script');
-          loveScript.src = '/love.js';
+          loveScript.src = '/game/love.js';
 
           loveScript.onload = () => {
             console.log('love.js loaded');
