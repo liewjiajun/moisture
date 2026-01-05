@@ -266,21 +266,8 @@ function App() {
     return unsubscribe;
   }, [account, signAndExecute, showToast, recordGameStart]);
 
-  // Handle wallet connect request from Lua
-  useEffect(() => {
-    const unsubscribe = luaBridge.on('requestWalletConnect', () => {
-      // Find the ConnectButton inside the wallet-overlay div
-      const walletOverlay = document.querySelector('.wallet-overlay');
-      if (walletOverlay) {
-        const connectBtn = walletOverlay.querySelector('button') as HTMLButtonElement;
-        if (connectBtn) {
-          connectBtn.click();
-        }
-      }
-    });
-
-    return unsubscribe;
-  }, []);
+  // Note: Wallet connect is now handled by showing the real ConnectButton on menu screen
+  // The Lua game no longer draws its own CONNECT WALLET button
 
   // Handle score submission from Lua
   useEffect(() => {
@@ -411,9 +398,9 @@ function App() {
       {/* Game canvas */}
       <GameCanvas onLoad={() => { setIsLoading(false); setLoadError(null); }} />
 
-      {/* Wallet connect overlay - hide when connected or playing */}
+      {/* Wallet connect button - centered on menu screen when not connected */}
       {!account && !isPlaying && !isLoading && !loadError && (
-        <div className="overlay wallet-overlay">
+        <div className="overlay wallet-overlay menu-center">
           <ConnectButton />
         </div>
       )}

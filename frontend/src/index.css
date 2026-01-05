@@ -68,10 +68,28 @@ body,
   pointer-events: auto;
 }
 
-/* Wallet connect button overlay */
-.wallet-overlay {
-  top: max(20px, env(safe-area-inset-top, 20px));
-  right: max(20px, env(safe-area-inset-right, 20px));
+/* Wallet connect button overlay - centered on menu screen */
+.wallet-overlay.menu-center {
+  top: 62%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Style ConnectButton to match game aesthetic */
+.wallet-overlay.menu-center button {
+  background: rgba(0, 200, 200, 0.3) !important;
+  border: 2px solid #00ffff !important;
+  color: #00ffff !important;
+  font-family: monospace !important;
+  font-size: 12px !important;
+  padding: 8px 16px !important;
+  border-radius: 4px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+}
+
+.wallet-overlay.menu-center button:hover {
+  background: rgba(0, 255, 255, 0.4) !important;
 }
 
 /* Emergency exit button */

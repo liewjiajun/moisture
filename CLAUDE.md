@@ -2,7 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**IMPORTANT: Read this file at the start of every session to maintain context.**
+## CRITICAL REMINDERS
+
+1. **READ THIS FILE** at the start of every session
+2. **UPDATE THIS FILE** at the end of every session with changes made
+3. **Check Session Notes** section for recent context
 
 ---
 
@@ -356,10 +360,11 @@ VITE_FIREBASE_APP_ID=
 - [x] **Sound WAV files** (10 generated retro-style sounds)
 - [x] **Touch controls polish** (joystick appears on touch, works anywhere)
 - [x] **Menu button in sauna** (return to main menu)
-- [x] **Wallet connect fix** (button selector corrected)
+- [x] **Wallet connect fix** (real React ConnectButton on menu)
+- [x] **Difficulty reduction** (spawn rate halved, slower scaling)
 
 ### Known Issues
-- [ ] Gameplay too difficult - enemies spawn too fast
+- None currently - difficulty reduced, wallet connect fixed
 
 ### Future Work
 - [ ] Background music
@@ -422,7 +427,25 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Post-Launch Polish)**:
+**Latest Session (Bug Fixes: Sound, Wallet, Difficulty)**:
+- Fixed wallet connect: Now shows real React ConnectButton in center of menu
+- Removed Lua-drawn CONNECT WALLET button (was causing race condition)
+- Reduced gameplay difficulty:
+  - Spawn rate halved: `0.002 + humidity * 0.001`
+  - Humidity growth slowed: every 15s instead of 10s
+  - Ring bullet count capped at 10
+- Rebuilt Love.js with sound files
+- Added CRITICAL REMINDERS at top of CLAUDE.md
+
+**Files Modified**:
+- `frontend/src/App.tsx` - Show real ConnectButton, removed requestWalletConnect handler
+- `frontend/src/index.css` - Styled centered ConnectButton for menu screen
+- `game/main.lua` - Removed Lua wallet button, reduced difficulty (3 changes)
+- `CLAUDE.md` - Added reminder section
+
+---
+
+**Previous Session (Post-Launch Polish)**:
 - Fixed wallet connect button (changed selector to find button inside .wallet-overlay div)
 - Removed CRT filter (disabled, shader code removed)
 - Removed haptic feedback calls (not supported in Love.js/web)
@@ -430,13 +453,6 @@ _Add notes here during development sessions to preserve context across auto-comp
 - Added MENU button in sauna top-left to return to main menu
 - Generated 10 WAV sound effect files using Python
 - Deployed via git push (auto-deploys to Vercel)
-
-**Files Modified**:
-- `game/main.lua` - Removed CRT shader, haptic calls, added menu button handler
-- `game/src/sauna.lua` - Added MENU button drawing and click detection
-- `game/src/touchcontrols.lua` - Simplified to show joystick only when touching, works anywhere
-- `frontend/src/App.tsx` - Fixed wallet connect button selector
-- `game/assets/sounds/*.wav` - NEW: 10 generated sound effect files
 
 ---
 

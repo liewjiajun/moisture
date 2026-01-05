@@ -342,7 +342,7 @@ function updateGame(dt)
     end
 
     -- Increase difficulty
-    humidity = 1 + math.floor(survivalTime / 10) * 0.2
+    humidity = 1 + math.floor(survivalTime / 15) * 0.15  -- Slower difficulty scaling
 
     -- Update player
     if player then
@@ -362,7 +362,7 @@ function updateGame(dt)
     upgrades:update(dt, player.x, player.y, isMoving, moveSpeed, cards.levels)
 
     -- Spawn enemies (reduced rate, fewer but more dangerous)
-    local spawnRate = 0.004 + humidity * 0.002  -- Much slower spawn rate
+    local spawnRate = 0.002 + humidity * 0.001  -- Halved spawn rate for easier gameplay
     if love.math.random() < spawnRate then
         spawnEnemy()
     end
@@ -492,7 +492,7 @@ function updateEnemies(dt)
                     end
                 elseif pattern == "ring" then
                     -- Ring of bullets
-                    local numBullets = 8 + math.floor(humidity)
+                    local numBullets = math.min(10, 8 + math.floor(humidity))  -- Cap at 10
                     for i = 1, numBullets do
                         local angle = (i / numBullets) * math.pi * 2
                         table.insert(bulletsToSpawn, {angle = angle, speed = bulletSpeed * 0.7})
@@ -1131,20 +1131,11 @@ function drawMenu()
     end
 
     -- Buttons
+    -- Note: CONNECT WALLET button is now rendered by React (real ConnectButton)
+    -- Only the PLAY AS GUEST button is drawn here
     local btnW, btnH = 100, 24
     local btnX = (w - btnW) / 2
-    local connectY = h * 0.62
     local guestY = h * 0.72
-
-    -- Connect Wallet button (cyan)
-    local connectHover = isButtonHovered(btnX, connectY, btnW, btnH)
-    local connectAlpha = connectHover and 0.9 or 0.7
-    love.graphics.setColor(0, 0.8, 0.8, connectAlpha * 0.3)
-    love.graphics.rectangle("fill", btnX, connectY, btnW, btnH, 4, 4)
-    love.graphics.setColor(0, 1, 1, connectAlpha)
-    love.graphics.rectangle("line", btnX, connectY, btnW, btnH, 4, 4)
-    love.graphics.setFont(fonts.small)
-    love.graphics.printf("CONNECT WALLET", btnX, connectY + 8, btnW, "center")
 
     -- Continue as Guest button (gray)
     local guestHover = isButtonHovered(btnX, guestY, btnW, btnH)
@@ -1582,17 +1573,10 @@ function love.mousepressed(x, y, button)
 
     if state == STATE.MENU then
         -- Menu button handling
+        -- Note: CONNECT WALLET is now a real React button, no Lua click handling needed
         local btnW, btnH = 100, 24
         local btnX = (w - btnW) / 2
-        local connectY = h * 0.62
         local guestY = h * 0.72
-
-        -- Connect Wallet button
-        if gx >= btnX and gx <= btnX + btnW and gy >= connectY and gy <= connectY + btnH then
-            Sounds.play("click")
-            Bridge.requestWalletConnect()
-            return
-        end
 
         -- Play as Guest button
         if gx >= btnX and gx <= btnX + btnW and gy >= guestY and gy <= guestY + btnH then
@@ -1677,17 +1661,10 @@ function love.touchpressed(id, x, y, dx, dy, pressure)
 
     if state == STATE.MENU then
         -- Menu button handling (same as mousepressed)
+        -- Note: CONNECT WALLET is now a real React button, no Lua click handling needed
         local btnW, btnH = 100, 24
         local btnX = (w - btnW) / 2
-        local connectY = h * 0.62
         local guestY = h * 0.72
-
-        -- Connect Wallet button
-        if gx >= btnX and gx <= btnX + btnW and gy >= connectY and gy <= connectY + btnH then
-            Sounds.play("click")
-            Bridge.requestWalletConnect()
-            return
-        end
 
         -- Play as Guest button
         if gx >= btnX and gx <= btnX + btnW and gy >= guestY and gy <= guestY + btnH then
