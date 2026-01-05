@@ -1131,7 +1131,14 @@ function drawGame()
                 love.graphics.setColor(1, 1, 1, 1)
             end
             local scale = e.facingLeft and -1 or 1
-            love.graphics.draw(e.sprite, math.floor(e.x), math.floor(e.y + e.bobOffset), 0, scale, 1, 5, 6)
+            -- Draw sprite if available, otherwise fallback to rectangle
+            if e.sprite then
+                love.graphics.draw(e.sprite, math.floor(e.x), math.floor(e.y + e.bobOffset), 0, scale, 1, 5, 6)
+            else
+                -- Fallback: draw colored rectangle
+                love.graphics.setColor(0.8, 0.3, 0.3, 1)
+                love.graphics.rectangle("fill", e.x - 5, e.y - 6, 10, 12)
+            end
 
             -- Health bar for damaged enemies
             if e.health < e.maxHealth then

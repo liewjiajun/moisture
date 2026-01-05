@@ -123,11 +123,14 @@ function Enemies.generateSprite(enemyType, seed)
     local typeConfig = ENEMY_TYPES[enemyType] or ENEMY_TYPES.fairy
     local colors = generateEnemyColors(rng, typeConfig)
 
-    local sprite = love.graphics.newCanvas(10, 12)
-    sprite:setFilter("nearest", "nearest")
+    -- Wrap canvas operations in pcall for Love.js compatibility
+    local sprite = nil
+    local success, err = pcall(function()
+        sprite = love.graphics.newCanvas(10, 12)
+        sprite:setFilter("nearest", "nearest")
 
-    love.graphics.setCanvas(sprite)
-    love.graphics.clear(0, 0, 0, 0)
+        love.graphics.setCanvas(sprite)
+        love.graphics.clear(0, 0, 0, 0)
 
     local alpha = typeConfig.transparent and 0.8 or 1
 
@@ -253,7 +256,14 @@ function Enemies.generateSprite(enemyType, seed)
         love.graphics.rectangle("fill", 3, -1, 4, 1)
     end
 
-    love.graphics.setCanvas()
+        love.graphics.setCanvas()
+    end)
+
+    if not success then
+        print("[Enemies] Sprite generation failed:", err)
+        return nil
+    end
+
     return sprite
 end
 

@@ -257,26 +257,36 @@ function Character.new(seed)
 end
 
 function Character:generateSprites()
-    -- Create sprite sheet: 4 frames (idle, walk1, idle, walk2)
-    -- Each frame is 12x16 pixels
-    self.spriteSheet = love.graphics.newCanvas(48, 16)
-    self.spriteSheet:setFilter("nearest", "nearest")
+    -- Wrap in pcall for Love.js compatibility (canvas operations may fail in WebGL)
+    local success, err = pcall(function()
+        -- Create sprite sheet: 4 frames (idle, walk1, idle, walk2)
+        -- Each frame is 12x16 pixels
+        self.spriteSheet = love.graphics.newCanvas(48, 16)
+        self.spriteSheet:setFilter("nearest", "nearest")
 
-    love.graphics.setCanvas(self.spriteSheet)
-    love.graphics.clear(0, 0, 0, 0)
+        love.graphics.setCanvas(self.spriteSheet)
+        love.graphics.clear(0, 0, 0, 0)
 
-    -- Generate 4 frames
-    for frame = 1, 4 do
-        local offsetX = (frame - 1) * 12
-        self:drawCharacterFrame(offsetX, 0, frame)
+        -- Generate 4 frames
+        for frame = 1, 4 do
+            local offsetX = (frame - 1) * 12
+            self:drawCharacterFrame(offsetX, 0, frame)
+        end
+
+        love.graphics.setCanvas()
+    end)
+
+    if not success then
+        print("[Character] Sprite generation failed:", err)
+        self.spriteSheet = nil
     end
 
-    love.graphics.setCanvas()
-
-    -- Create quads for each frame
-    self.quads = {}
-    for i = 1, 4 do
-        self.quads[i] = love.graphics.newQuad((i-1) * 12, 0, 12, 16, 48, 16)
+    -- Create quads only if sprite sheet was created
+    if self.spriteSheet then
+        self.quads = {}
+        for i = 1, 4 do
+            self.quads[i] = love.graphics.newQuad((i-1) * 12, 0, 12, 16, 48, 16)
+        end
     end
 end
 
@@ -479,6 +489,15 @@ end
 
 function Character:draw(x, y, scale, facingLeft)
     scale = scale or 1
+
+    -- Fallback if sprite generation failed (Love.js compatibility)
+    if not self.spriteSheet or not self.quads then
+        -- Draw simple colored rectangle as fallback
+        love.graphics.setColor(self.skinTone[1][1]/255, self.skinTone[1][2]/255, self.skinTone[1][3]/255, 1)
+        love.graphics.rectangle("fill", x - 6 * scale, y - 8 * scale, 12 * scale, 16 * scale)
+        return
+    end
+
     local scaleX = facingLeft and -scale or scale
 
     love.graphics.setColor(1, 1, 1, 1)
@@ -496,6 +515,13 @@ end
 
 function Character:drawPreview(x, y, scale)
     scale = scale or 2
+
+    -- Fallback if sprite generation failed (Love.js compatibility)
+    if not self.spriteSheet or not self.quads then
+        love.graphics.setColor(self.skinTone[1][1]/255, self.skinTone[1][2]/255, self.skinTone[1][3]/255, 1)
+        love.graphics.rectangle("fill", x - 6 * scale, y - 8 * scale, 12 * scale, 16 * scale)
+        return
+    end
 
     -- Idle bobbing
     local bob = math.sin(love.timer.getTime() * 2) * 1
