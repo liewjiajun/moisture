@@ -49,6 +49,9 @@ function TouchControls:touchpressed(id, x, y)
     -- Convert to game coordinates
     local gx, gy = self.pixelCanvas:toGame(x, y)
 
+    -- Reset idle timer on touch
+    self.joystick.idleTime = 0
+
     -- Any touch becomes joystick - appears at touch location
     if not self.joystick.active then
         self.joystick.active = true
@@ -63,6 +66,9 @@ end
 
 function TouchControls:touchmoved(id, x, y)
     local gx, gy = self.pixelCanvas:toGame(x, y)
+
+    -- Reset idle timer on any touch movement
+    self.joystick.idleTime = 0
 
     if id == self.joystick.touchId then
         -- Calculate joystick offset
@@ -104,22 +110,17 @@ function TouchControls:touchreleased(id, x, y)
 end
 
 function TouchControls:update(dt)
-    -- Safety reset: check if joystick touch is still active
+    -- Timeout-based reset: if joystick is active but idle, reset after short delay
     -- This handles cases where touchreleased wasn't called properly (Love.js/browser issues)
-    if self.joystick.active and self.joystick.touchId then
-        local touches = love.touch.getTouches()
-        local touchStillActive = false
-        for _, id in ipairs(touches) do
-            if id == self.joystick.touchId then
-                touchStillActive = true
-                break
-            end
-        end
-        if not touchStillActive then
+    if self.joystick.active then
+        self.joystick.idleTime = (self.joystick.idleTime or 0) + dt
+        -- Reset after 0.1 seconds of no touch events
+        if self.joystick.idleTime > 0.1 then
             self.joystick.active = false
             self.joystick.touchId = nil
             self.joystick.dx = 0
             self.joystick.dy = 0
+            self.joystick.idleTime = 0
         end
     end
 

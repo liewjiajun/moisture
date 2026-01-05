@@ -43,28 +43,29 @@ function App() {
     return () => clearTimeout(timeout);
   }, [isLoading]);
 
-  // Initialize WebAudio on first user interaction (browser security requirement)
+  // Resume Love.js SDL2 audio context on first user interaction
   useEffect(() => {
-    const initAudio = () => {
+    const resumeLoveAudio = () => {
       try {
-        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContext) {
-          const audioContext = new AudioContext();
-          audioContext.resume();
+        // Resume Love.js SDL2 audio context
+        if ((window as any).SDL2?.audioContext) {
+          (window as any).SDL2.audioContext.resume();
+        }
+        // Also try Module.audioContext (alternative Love.js setup)
+        if ((window as any).Module?.audioContext) {
+          (window as any).Module.audioContext.resume();
         }
       } catch (e) {
-        console.warn('Failed to initialize AudioContext:', e);
+        console.warn('Failed to resume audio:', e);
       }
-      document.removeEventListener('click', initAudio);
-      document.removeEventListener('touchstart', initAudio);
     };
 
-    document.addEventListener('click', initAudio);
-    document.addEventListener('touchstart', initAudio);
+    document.addEventListener('click', resumeLoveAudio, { once: true });
+    document.addEventListener('touchstart', resumeLoveAudio, { once: true });
 
     return () => {
-      document.removeEventListener('click', initAudio);
-      document.removeEventListener('touchstart', initAudio);
+      document.removeEventListener('click', resumeLoveAudio);
+      document.removeEventListener('touchstart', resumeLoveAudio);
     };
   }, []);
 
@@ -90,10 +91,21 @@ function App() {
 
   // Update Lua bridge with wallet state
   useEffect(() => {
-    luaBridge.setWalletState({
-      connected: !!account,
-      address: account?.address || null,
-    });
+    if (account) {
+      // Small delay to ensure bridge is ready before setting connected state
+      const timer = setTimeout(() => {
+        luaBridge.setWalletState({
+          connected: true,
+          address: account.address,
+        });
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      luaBridge.setWalletState({
+        connected: false,
+        address: null,
+      });
+    }
   }, [account]);
 
   // Sync chat messages to Lua

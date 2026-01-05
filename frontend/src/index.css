@@ -244,22 +244,25 @@ body,
   transform: translateX(-50%);
   width: calc(100% - 40px);
   max-width: 300px;
-  padding: 10px 15px;
-  background: rgba(0, 0, 0, 0.85);
-  border: 1px solid var(--color-cyan);
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.95);
+  border: 2px solid var(--color-cyan);
   border-radius: 8px;
-  color: var(--color-text);
+  color: white;
   font-family: monospace;
-  font-size: 14px;
-  z-index: 200;
+  font-size: 16px;  /* Larger for mobile - prevents iOS zoom */
+  z-index: 500;  /* Higher than everything */
   outline: none;
+  pointer-events: auto;
+  -webkit-appearance: none;  /* iOS fix */
+  touch-action: manipulation;  /* Prevent zoom on double-tap */
 }
 
 .mobile-chat-input:focus {
   border-color: var(--color-green);
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
 }
 
 .mobile-chat-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.5);
 }

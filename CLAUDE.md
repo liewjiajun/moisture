@@ -427,7 +427,29 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Wallet, Joystick, Chat, Sound Fixes)**:
+**Latest Session (Wallet→Sauna, Joystick, Sound, Chat Fixes)**:
+- Fixed wallet→Sauna transition:
+  - Added 100ms delay when setting wallet state to ensure bridge is ready
+- Fixed double joystick:
+  - Replaced love.touch.getTouches() check with timeout-based reset
+  - Joystick auto-hides after 0.1s of no touch activity
+- Fixed sound not playing:
+  - Changed from creating new AudioContext to resuming Love.js SDL2.audioContext
+  - Avoids conflict between two audio contexts
+- Improved mobile chat input:
+  - Increased z-index to 500, added iOS-specific fixes
+  - Added pointer-events:auto, touch-action:manipulation
+  - Larger font size (16px) to prevent iOS zoom
+
+**Files Modified**:
+- `frontend/src/App.tsx` - Wallet timing delay, SDL2 audio resume
+- `game/src/touchcontrols.lua` - Timeout-based joystick reset
+- `frontend/src/index.css` - Improved mobile chat input CSS
+- `CLAUDE.md` - Updated session notes
+
+---
+
+**Previous Session (Wallet, Joystick, Chat, Sound Fixes)**:
 - Fixed wallet staying connected on revisit:
   - Set `autoConnect={false}` on WalletProvider in main.tsx
 - Fixed joystick always visible:
@@ -440,14 +462,6 @@ _Add notes here during development sessions to preserve context across auto-comp
 - Fixed sound not playing:
   - Added WebAudio context initialization on first user interaction
   - Browser security requires AudioContext.resume() after user gesture
-
-**Files Modified**:
-- `frontend/src/main.tsx` - Set autoConnect={false}
-- `game/src/touchcontrols.lua` - Added safety reset for joystick state
-- `frontend/src/App.tsx` - Added WebAudio init, mobile chat input, activateChatInput listener
-- `frontend/src/index.css` - Added .mobile-chat-input styles
-- `game/main.lua` - Added Bridge.sendToJS("activateChatInput") on chat click
-- `CLAUDE.md` - Updated session notes
 
 ---
 
