@@ -68,13 +68,26 @@ export interface OnlinePlayer {
 
 type EventCallback = (data: unknown) => void;
 
+interface PendingMessage {
+  event: string;
+  data: any;
+}
+
 class LuaBridge {
   private eventListeners: Map<string, EventCallback[]> = new Map();
   private loveModuleRef: any = null;
+  private pendingMessages: PendingMessage[] = [];
 
   constructor() {
     // Set up global receiver for Lua events
     (window as any).receiveFromLua = this.receiveFromLua.bind(this);
+
+    // Expose polling function for Lua to retrieve pending messages
+    (window as any).getPendingBridgeMessages = () => {
+      const messages = this.pendingMessages;
+      this.pendingMessages = [];
+      return JSON.stringify(messages);
+    };
   }
 
   // Initialize with Love.js module reference
@@ -87,49 +100,9 @@ class LuaBridge {
     return this.loveModuleRef;
   }
 
-  // Send data to Lua
+  // Send data to Lua via message queue (Lua polls for these)
   sendToLua(event: string, data: any) {
-    if ((window as any).luaBridge) {
-      const bridge = (window as any).luaBridge;
-
-      switch (event) {
-        case 'walletState':
-          bridge.setWalletState(data.connected, data.address || '');
-          break;
-        case 'gameData':
-          bridge.setGameData(data.characterSeed, data.roundId, data.ticketId || '');
-          break;
-        case 'poolData':
-          bridge.setPoolData(data.balance, data.endTimestamp);
-          break;
-        case 'chatMessage':
-          bridge.addChatMessage(data.sender, data.message, data.timestamp);
-          break;
-        case 'leaderboard':
-          if (bridge.setLeaderboard) {
-            bridge.setLeaderboard(JSON.stringify(data));
-          }
-          break;
-        case 'playerStats':
-          if (bridge.setPlayerStats) {
-            bridge.setPlayerStats(data.gamesPlayed, data.bestTime, data.totalSpent);
-          }
-          break;
-        case 'pastRounds':
-          if (bridge.setPastRounds) {
-            bridge.setPastRounds(JSON.stringify(data));
-          }
-          break;
-        case 'onlinePlayers':
-          if (bridge.setOnlinePlayers) {
-            bridge.setOnlinePlayers(JSON.stringify(data));
-          }
-          break;
-        case 'startGame':
-          bridge.startGame();
-          break;
-      }
-    }
+    this.pendingMessages.push({ event, data });
   }
 
   // Receive events from Lua

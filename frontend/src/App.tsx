@@ -103,35 +103,15 @@ function App() {
   }, []);
 
   // Update Lua bridge with wallet state
+  // Messages are queued and Lua polls for them, so no need to wait for bridge
   useEffect(() => {
     if (account) {
-      // Poll until bridge is ready (max 5 seconds)
-      // Love.js can take 200-500ms to initialize on mobile
-      let attempts = 0;
-      const maxAttempts = 50; // 50 * 100ms = 5 seconds
-      let cancelled = false;
-
-      const checkBridge = () => {
-        if (cancelled) return;
-
-        if ((window as any).luaBridge) {
-          console.log('[Bridge] Found luaBridge, setting wallet state');
-          luaBridge.setWalletState({
-            connected: true,
-            address: account.address,
-          });
-        } else if (attempts < maxAttempts) {
-          attempts++;
-          setTimeout(checkBridge, 100);
-        } else {
-          console.warn('[Bridge] Timeout waiting for luaBridge');
-        }
-      };
-
-      checkBridge();
-      return () => { cancelled = true; };
+      console.log('[Bridge] Queueing wallet connected state');
+      luaBridge.setWalletState({
+        connected: true,
+        address: account.address,
+      });
     } else {
-      // Disconnect can be immediate since bridge should exist by now
       luaBridge.setWalletState({
         connected: false,
         address: null,

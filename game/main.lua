@@ -217,6 +217,9 @@ function love.update(dt)
         print("[MOISTURE] love.update() frame " .. frameCount .. " state=" .. tostring(state))
     end
 
+    -- Poll for messages from JavaScript (wallet state, chat, etc.)
+    Bridge.pollMessages()
+
     -- Nil safety checks
     if not pixelCanvas then
         print("[MOISTURE] ERROR: pixelCanvas is nil in update!")

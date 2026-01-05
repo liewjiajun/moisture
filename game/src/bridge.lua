@@ -108,6 +108,152 @@ function Bridge.init()
     end
 end
 
+-- Poll for pending messages from JavaScript (called every frame)
+function Bridge.pollMessages()
+    if not Bridge.isBrowser then return end
+
+    -- Try to get pending messages from JavaScript
+    local success, json = pcall(function()
+        if js and js.global and js.global.getPendingBridgeMessages then
+            return js.global:getPendingBridgeMessages()
+        end
+        return "[]"
+    end)
+
+    if not success or not json or json == "[]" or json == "" then return end
+
+    -- Parse and handle each message
+    local messages = Bridge.parseMessages(json)
+    if not messages then return end
+
+    for _, msg in ipairs(messages) do
+        Bridge.handleMessage(msg)
+    end
+end
+
+-- Parse message queue JSON: [{event:"x",data:{...}}, ...]
+function Bridge.parseMessages(json)
+    if not json or json == "" or json == "[]" then return nil end
+
+    local messages = {}
+
+    -- Match each message object: {"event":"xxx","data":{...}}
+    for msgStr in json:gmatch('%{"event":"([^"]+)","data":(%b{})%}') do
+        -- This pattern doesn't quite work, let's try a different approach
+    end
+
+    -- Simpler approach: split by },{ and parse each
+    -- Remove outer brackets
+    local inner = json:match('^%[(.*)%]$')
+    if not inner or inner == "" then return nil end
+
+    -- For each message block
+    for msgBlock in (inner .. ","):gmatch('(%b{}),?') do
+        local event = msgBlock:match('"event":"([^"]+)"')
+        if event then
+            local msg = { event = event, data = {} }
+
+            -- Parse data based on event type
+            if event == "walletState" then
+                local connected = msgBlock:match('"connected":(%w+)')
+                msg.data.connected = (connected == "true")
+                msg.data.address = msgBlock:match('"address":"([^"]*)"')
+            elseif event == "chatMessage" then
+                msg.data.sender = msgBlock:match('"sender":"([^"]*)"')
+                msg.data.message = msgBlock:match('"message":"([^"]*)"')
+                local ts = msgBlock:match('"timestamp":(%d+)')
+                msg.data.timestamp = ts and tonumber(ts) or os.time()
+            elseif event == "poolData" then
+                local balance = msgBlock:match('"balance":([%d%.]+)')
+                local endTs = msgBlock:match('"endTimestamp":(%d+)')
+                msg.data.balance = balance and tonumber(balance) or 0
+                msg.data.endTimestamp = endTs and tonumber(endTs) or 0
+            elseif event == "gameData" then
+                local seed = msgBlock:match('"characterSeed":(%d+)')
+                local roundId = msgBlock:match('"roundId":(%d+)')
+                msg.data.characterSeed = seed and tonumber(seed)
+                msg.data.roundId = roundId and tonumber(roundId)
+                msg.data.ticketId = msgBlock:match('"ticketId":"([^"]*)"')
+            elseif event == "playerStats" then
+                local gp = msgBlock:match('"gamesPlayed":(%d+)')
+                local bt = msgBlock:match('"bestTime":(%d+)')
+                local ts = msgBlock:match('"totalSpent":([%d%.]+)')
+                msg.data.gamesPlayed = gp and tonumber(gp) or 0
+                msg.data.bestTime = bt and tonumber(bt) or 0
+                msg.data.totalSpent = ts and tonumber(ts) or 0
+            elseif event == "leaderboard" then
+                -- Leaderboard data is nested, extract and re-parse
+                local leaderData = msgBlock:match('"data":(%[.-%])')
+                if leaderData then
+                    msg.data = Bridge.parseJSON(leaderData)
+                end
+            elseif event == "pastRounds" then
+                local roundsData = msgBlock:match('"data":(%[.-%])')
+                if roundsData then
+                    msg.data = Bridge.parsePastRoundsJSON(roundsData)
+                end
+            elseif event == "onlinePlayers" then
+                local playersData = msgBlock:match('"data":(%[.-%])')
+                if playersData then
+                    msg.data = Bridge.parseOnlinePlayersJSON(playersData)
+                end
+            end
+
+            table.insert(messages, msg)
+        end
+    end
+
+    return messages
+end
+
+-- Handle a single message from JavaScript
+function Bridge.handleMessage(msg)
+    if not msg or not msg.event then return end
+
+    local event = msg.event
+    local data = msg.data or {}
+
+    if event == "walletState" then
+        Bridge.walletConnected = data.connected
+        Bridge.walletAddress = data.address
+        print("[Bridge] Wallet state updated: " .. tostring(data.connected))
+    elseif event == "chatMessage" then
+        table.insert(Bridge.chatMessages, {
+            sender = data.sender,
+            message = data.message,
+            timestamp = data.timestamp or os.time()
+        })
+        while #Bridge.chatMessages > 50 do
+            table.remove(Bridge.chatMessages, 1)
+        end
+    elseif event == "poolData" then
+        Bridge.poolBalance = data.balance or 0
+        Bridge.endTimestamp = data.endTimestamp or 0
+    elseif event == "gameData" then
+        Bridge.characterSeed = data.characterSeed
+        Bridge.roundId = data.roundId
+        Bridge.ticketId = data.ticketId
+    elseif event == "playerStats" then
+        Bridge.playerStats.gamesPlayed = data.gamesPlayed or 0
+        Bridge.playerStats.bestTime = data.bestTime or 0
+        Bridge.playerStats.totalSpent = data.totalSpent or 0
+    elseif event == "leaderboard" then
+        if type(data) == "table" then
+            Bridge.leaderboard = data
+        end
+    elseif event == "pastRounds" then
+        if type(data) == "table" then
+            Bridge.pastRounds = data
+        end
+    elseif event == "onlinePlayers" then
+        if type(data) == "table" then
+            Bridge.onlinePlayers = data
+        end
+    elseif event == "startGame" then
+        love.event.push("startgame")
+    end
+end
+
 function Bridge.sendToJS(event, data)
     -- Lazy init check in case called before Bridge.init()
     if Bridge.isBrowser == nil then

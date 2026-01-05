@@ -14,17 +14,18 @@ Sounds.config = {
 Sounds.sources = {}
 
 -- Sound definitions with paths and default volumes
+-- NOTE: Paths must be absolute (start with /) for Love.js Emscripten VFS
 Sounds.definitions = {
-    shoot = { path = "assets/sounds/shoot.wav", volume = 0.3, variants = 1 },
-    bounce = { path = "assets/sounds/bounce.wav", volume = 0.5, variants = 1 },
-    hit = { path = "assets/sounds/hit.wav", volume = 0.8, variants = 1 },
-    death = { path = "assets/sounds/death.wav", volume = 1.0, variants = 1 },
-    pickup = { path = "assets/sounds/pickup.wav", volume = 0.6, variants = 1 },
-    countdown = { path = "assets/sounds/countdown.wav", volume = 0.7, variants = 1 },
-    go = { path = "assets/sounds/go.wav", volume = 0.8, variants = 1 },
-    click = { path = "assets/sounds/click.wav", volume = 0.4, variants = 1 },
-    door = { path = "assets/sounds/door.wav", volume = 0.5, variants = 1 },
-    chat = { path = "assets/sounds/chat.wav", volume = 0.3, variants = 1 },
+    shoot = { path = "/assets/sounds/shoot.wav", volume = 0.3, variants = 1 },
+    bounce = { path = "/assets/sounds/bounce.wav", volume = 0.5, variants = 1 },
+    hit = { path = "/assets/sounds/hit.wav", volume = 0.8, variants = 1 },
+    death = { path = "/assets/sounds/death.wav", volume = 1.0, variants = 1 },
+    pickup = { path = "/assets/sounds/pickup.wav", volume = 0.6, variants = 1 },
+    countdown = { path = "/assets/sounds/countdown.wav", volume = 0.7, variants = 1 },
+    go = { path = "/assets/sounds/go.wav", volume = 0.8, variants = 1 },
+    click = { path = "/assets/sounds/click.wav", volume = 0.4, variants = 1 },
+    door = { path = "/assets/sounds/door.wav", volume = 0.5, variants = 1 },
+    chat = { path = "/assets/sounds/chat.wav", volume = 0.3, variants = 1 },
 }
 
 -- Load a single sound (returns nil and error if file doesn't exist)
