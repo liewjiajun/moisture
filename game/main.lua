@@ -1,4 +1,4 @@
--- INCREMENTAL TEST - Step 2: PixelCanvas initialization
+-- INCREMENTAL TEST - Step 3: TouchControls, Sounds, Character
 print("[TEST] Starting...")
 
 local function safeRequire(name)
@@ -26,24 +26,41 @@ local Sounds = safeRequire("src.sounds")
 print("[TEST] All requires done")
 
 local pixelCanvas
+local touchControls
+local player
 
 function love.load()
     print("[TEST] love.load called")
 
     print("[TEST] Creating PixelCanvas...")
     pixelCanvas = PixelCanvas.new()
-    print("[TEST] PixelCanvas created: " .. tostring(pixelCanvas))
+    print("[TEST] PixelCanvas created")
+
+    print("[TEST] Creating TouchControls...")
+    touchControls = TouchControls.new(pixelCanvas)
+    print("[TEST] TouchControls created")
+
+    print("[TEST] Loading Sounds...")
+    Sounds.load()
+    print("[TEST] Sounds loaded")
+
+    print("[TEST] Creating player character...")
+    player = {
+        x = 90,
+        y = 250,
+        sprite = Character.generate(12345),
+    }
+    print("[TEST] Player created: " .. tostring(player.sprite))
 
     print("[TEST] love.load complete")
 end
 
 function love.update(dt)
-    print("[TEST] love.update called")
+    -- Just log first frame
 end
 
 function love.draw()
-    print("[TEST] love.draw called")
-    love.graphics.clear(0, 0, 1)  -- Blue screen = PixelCanvas works
+    love.graphics.clear(1, 0, 1)  -- Magenta = Step 3 works
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("PixelCanvas OK!", 100, 100)
+    love.graphics.print("TouchControls + Sounds + Character OK!", 10, 100)
 end
