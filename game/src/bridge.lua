@@ -30,10 +30,17 @@ Bridge.onlinePlayers = {}  -- Array of {id, address, characterSeed, x, y}
 -- Queue for outgoing messages
 Bridge.outQueue = {}
 
--- Check if running in browser (Love.js)
-Bridge.isBrowser = love.system.getOS() == "Web" or (js and js.global)
+-- Browser detection (set in init() after runtime is ready)
+Bridge.isBrowser = nil
 
 function Bridge.init()
+    -- Detect browser environment (Love.js) - must be done after runtime init
+    Bridge.isBrowser = love.system.getOS() == "Web"
+    if not Bridge.isBrowser then
+        -- Fallback check for js global
+        Bridge.isBrowser = (type(js) == "table" and js.global ~= nil)
+    end
+
     -- Set up global functions for JS to call
     if Bridge.isBrowser and js then
         -- Expose Lua functions to JavaScript
@@ -102,7 +109,12 @@ function Bridge.init()
 end
 
 function Bridge.sendToJS(event, data)
-    if Bridge.isBrowser and js and js.global.receiveFromLua then
+    -- Lazy init check in case called before Bridge.init()
+    if Bridge.isBrowser == nil then
+        Bridge.isBrowser = love.system.getOS() == "Web" or (type(js) == "table" and js.global ~= nil)
+    end
+
+    if Bridge.isBrowser and type(js) == "table" and js.global and js.global.receiveFromLua then
         js.global.receiveFromLua(event, data)
     else
         -- Queue for non-browser testing
