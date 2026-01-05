@@ -8,6 +8,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **UPDATE THIS FILE** at the end of every session with changes made
 3. **Check Session Notes** section for recent context
 
+### ⚠️ LOVE.JS BUILD WARNING ⚠️
+
+**NEVER have duplicate game files!** The game MUST load from `/game/` subdirectory:
+
+```
+frontend/public/
+├── game/           ← CORRECT - All Love.js files go here
+│   ├── game.js
+│   ├── game.data
+│   └── love.js
+├── game.js         ← WRONG - DELETE if exists!
+├── game.data       ← WRONG - DELETE if exists!
+└── love.js         ← WRONG - DELETE if exists!
+```
+
+**GameCanvas.tsx must load from `/game/`:**
+```typescript
+gameScript.src = '/game/game.js';   // NOT '/game.js'
+loveScript.src = '/game/love.js';   // NOT '/love.js'
+```
+
+**After running `npx love.js -c game frontend/public/game`:**
+1. Verify files are ONLY in `frontend/public/game/`
+2. Delete any game.js, game.data, love.js from `frontend/public/` root
+3. Check GameCanvas.tsx paths point to `/game/` subdirectory
+
 ---
 
 ## Current Sprint: Pre-Deployment Polish (COMPLETED)
@@ -428,7 +454,38 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Bug Fixes V3.1 - Cache Issue + Verification)**:
+**Latest Session (Bug Fix V5 - Duplicate Game Files)**:
+After V3/V4 still showed old code, discovered ROOT CAUSE: **duplicate game files**.
+
+**Problem**: There were TWO sets of game files:
+- `/frontend/public/game.js` + `game.data` + `love.js` (OLD - being loaded)
+- `/frontend/public/game/game.js` + `game.data` + `love.js` (NEW - ignored)
+
+GameCanvas.tsx was loading `/game.js` from root, not `/game/game.js` from subdirectory.
+
+**Fix Applied**:
+1. Deleted old files from `frontend/public/` root
+2. Updated GameCanvas.tsx to load from `/game/` subdirectory:
+   - Line 125: `/game.js` → `/game/game.js`
+   - Line 137: `/love.js` → `/game/love.js`
+
+**Files Modified**:
+- `frontend/public/game.js` - DELETED
+- `frontend/public/game.data` - DELETED
+- `frontend/public/love.js` - DELETED
+- `frontend/src/components/GameCanvas.tsx` - Updated paths
+
+**Lesson Learned**: Added ⚠️ LOVE.JS BUILD WARNING to CRITICAL REMINDERS section.
+
+---
+
+**Previous Session (Bug Fixes V4 - Cache Headers)**:
+Tried changing UUID in game.js and adding Cache-Control headers to vercel.json.
+Did not work because we changed the wrong game.js file (in /game/ not root).
+
+---
+
+**Previous Session (Bug Fixes V3.1 - Cache Issue + Verification)**:
 After deploying V3, browser console still showed old code (`[Sounds] Missing:` instead of `[Sounds] FAILED:`). This indicated Vercel/browser was serving cached version.
 
 - Force rebuilt Love.js with `rm -rf frontend/public/game/* && npx love.js -c ...`
