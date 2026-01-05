@@ -75,6 +75,11 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           canvas,
           arguments: ['./'],
           INITIAL_MEMORY: 67108864,
+
+          // Tell Emscripten where to find game files (game.data, love.wasm)
+          locateFile: (path: string) => {
+            return '/game/' + path;
+          },
           printErr: (text: string) => {
             console.error('Love.js error:', text);
           },
