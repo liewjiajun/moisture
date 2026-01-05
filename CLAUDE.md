@@ -428,33 +428,37 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Bug Fixes V2 - Root Cause Analysis)**:
-Previous fixes didn't work. Did deep investigation to find real root causes:
+**Latest Session (Bug Fixes V3 - Sound + Bridge Architecture Fix)**:
+V2 fixes still didn't work. Deep investigation revealed fundamental architectural issues:
 
-- Fixed wallet→Sauna transition:
-  - Root cause: 100ms delay wasn't enough, Love.js takes 200-500ms to init
-  - Solution: Poll for window.luaBridge readiness (up to 5 seconds)
-  - Bridge calls were silently failing if luaBridge didn't exist yet
+- Fixed sounds not loading:
+  - Root cause: Love.js Emscripten VFS requires ABSOLUTE paths (/assets/sounds/...)
+  - Relative paths (assets/sounds/...) don't resolve in the virtual filesystem
+  - Solution: Changed all 10 sound paths to start with /
 
-- Fixed double joystick:
-  - Root cause: idleTime reset was getting triggered by continuous touchmoved events
-  - Solution: Track actual touch presence via love.touch.getTouches()
-  - Uses noTouchTime with 50ms grace period before resetting
-
-- Improved mobile chat:
-  - Root cause: focus() from events doesn't work on mobile (security restriction)
-  - Solution: Let users tap input directly, increased z-index to 1000
-  - Added onBlur auto-submit for better mobile UX
-
-- Sound debugging:
-  - Added comprehensive logging to sounds.lua
-  - Improved audio context resume with promise handling and multiple events
+- Fixed wallet→Sauna transition (COMPLETE REWRITE):
+  - Root cause: `js.global.luaBridge = { Lua table }` does NOT expose Lua functions to JavaScript
+  - Love.js/Emscripten cannot convert Lua functions to JavaScript-callable functions
+  - The Lua table exists only in Lua's memory space, not accessible from React
+  - Solution: Message queue pattern - React queues messages, Lua polls for them
+    - React: `pendingMessages` array + `getPendingBridgeMessages()` function
+    - Lua: `Bridge.pollMessages()` called every frame in love.update()
+    - Lua: `Bridge.parseMessages()` and `Bridge.handleMessage()` process messages
 
 **Files Modified**:
-- `frontend/src/App.tsx` - Bridge polling, audio resume improvements
-- `game/src/touchcontrols.lua` - noTouchTime-based reset
-- `game/src/sounds.lua` - Enhanced debug logging
-- `frontend/src/index.css` - z-index 1000, larger touch target
+- `game/src/sounds.lua` - Absolute paths (/assets/sounds/...)
+- `frontend/src/bridge/luaBridge.ts` - Message queue + getPendingBridgeMessages()
+- `game/src/bridge.lua` - pollMessages(), parseMessages(), handleMessage()
+- `game/main.lua` - Call Bridge.pollMessages() in love.update()
+- `frontend/src/App.tsx` - Simplified wallet state effect (no polling needed)
+
+---
+
+**Previous Session (Bug Fixes V2 - Did Not Work)**:
+- Tried polling for window.luaBridge (up to 5 seconds)
+- Tried noTouchTime-based joystick reset
+- Added debug logging to sounds.lua
+- None of these fixed the underlying issues
 
 ---
 
