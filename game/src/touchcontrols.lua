@@ -101,6 +101,7 @@ function TouchControls:touchreleased(id, x, y)
         self.joystick.touchId = nil
         self.joystick.dx = 0
         self.joystick.dy = 0
+        self.joystick.noTouchTime = 0
     end
 
     if id == self.shoot.touchId then
@@ -110,17 +111,37 @@ function TouchControls:touchreleased(id, x, y)
 end
 
 function TouchControls:update(dt)
-    -- Timeout-based reset: if joystick is active but idle, reset after short delay
-    -- This handles cases where touchreleased wasn't called properly (Love.js/browser issues)
-    if self.joystick.active then
-        self.joystick.idleTime = (self.joystick.idleTime or 0) + dt
-        -- Reset after 0.1 seconds of no touch events
-        if self.joystick.idleTime > 0.1 then
-            self.joystick.active = false
-            self.joystick.touchId = nil
-            self.joystick.dx = 0
-            self.joystick.dy = 0
-            self.joystick.idleTime = 0
+    -- Check if our tracked touch still exists (handles Love.js touch event quirks)
+    if self.joystick.active and self.joystick.touchId then
+        -- Get current active touches
+        local touches = {}
+        pcall(function()
+            touches = love.touch.getTouches()
+        end)
+
+        -- Check if our touch ID is still active
+        local touchFound = false
+        for _, touchId in ipairs(touches) do
+            if touchId == self.joystick.touchId then
+                touchFound = true
+                break
+            end
+        end
+
+        -- If touch not found, increment noTouchTime
+        if not touchFound then
+            self.joystick.noTouchTime = (self.joystick.noTouchTime or 0) + dt
+            -- Reset after 50ms grace period (handles brief touch detection gaps)
+            if self.joystick.noTouchTime > 0.05 then
+                self.joystick.active = false
+                self.joystick.touchId = nil
+                self.joystick.dx = 0
+                self.joystick.dy = 0
+                self.joystick.noTouchTime = 0
+            end
+        else
+            -- Touch is still active, reset noTouchTime
+            self.joystick.noTouchTime = 0
         end
     end
 

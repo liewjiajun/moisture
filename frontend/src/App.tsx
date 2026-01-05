@@ -46,26 +46,39 @@ function App() {
   // Resume Love.js SDL2 audio context on first user interaction
   useEffect(() => {
     const resumeLoveAudio = () => {
+      console.log('[Audio] Attempting to resume Love.js audio...');
       try {
-        // Resume Love.js SDL2 audio context
+        // Try SDL2 audio context (Love.js uses this)
         if ((window as any).SDL2?.audioContext) {
-          (window as any).SDL2.audioContext.resume();
+          (window as any).SDL2.audioContext.resume().then(() => {
+            console.log('[Audio] SDL2 audioContext resumed');
+          }).catch((e: any) => {
+            console.warn('[Audio] SDL2 resume failed:', e);
+          });
         }
         // Also try Module.audioContext (alternative Love.js setup)
         if ((window as any).Module?.audioContext) {
-          (window as any).Module.audioContext.resume();
+          (window as any).Module.audioContext.resume().then(() => {
+            console.log('[Audio] Module audioContext resumed');
+          }).catch((e: any) => {
+            console.warn('[Audio] Module resume failed:', e);
+          });
         }
       } catch (e) {
-        console.warn('Failed to resume audio:', e);
+        console.warn('[Audio] Failed to resume audio:', e);
       }
     };
 
-    document.addEventListener('click', resumeLoveAudio, { once: true });
-    document.addEventListener('touchstart', resumeLoveAudio, { once: true });
+    // Resume on multiple interaction types
+    const events = ['click', 'touchstart', 'keydown'];
+    events.forEach(event => {
+      document.addEventListener(event, resumeLoveAudio, { once: true });
+    });
 
     return () => {
-      document.removeEventListener('click', resumeLoveAudio);
-      document.removeEventListener('touchstart', resumeLoveAudio);
+      events.forEach(event => {
+        document.removeEventListener(event, resumeLoveAudio);
+      });
     };
   }, []);
 
@@ -92,15 +105,33 @@ function App() {
   // Update Lua bridge with wallet state
   useEffect(() => {
     if (account) {
-      // Small delay to ensure bridge is ready before setting connected state
-      const timer = setTimeout(() => {
-        luaBridge.setWalletState({
-          connected: true,
-          address: account.address,
-        });
-      }, 100);
-      return () => clearTimeout(timer);
+      // Poll until bridge is ready (max 5 seconds)
+      // Love.js can take 200-500ms to initialize on mobile
+      let attempts = 0;
+      const maxAttempts = 50; // 50 * 100ms = 5 seconds
+      let cancelled = false;
+
+      const checkBridge = () => {
+        if (cancelled) return;
+
+        if ((window as any).luaBridge) {
+          console.log('[Bridge] Found luaBridge, setting wallet state');
+          luaBridge.setWalletState({
+            connected: true,
+            address: account.address,
+          });
+        } else if (attempts < maxAttempts) {
+          attempts++;
+          setTimeout(checkBridge, 100);
+        } else {
+          console.warn('[Bridge] Timeout waiting for luaBridge');
+        }
+      };
+
+      checkBridge();
+      return () => { cancelled = true; };
     } else {
+      // Disconnect can be immediate since bridge should exist by now
       luaBridge.setWalletState({
         connected: false,
         address: null,
@@ -514,7 +545,7 @@ function App() {
         ))}
       </div>
 
-      {/* Hidden chat input for mobile keyboard support */}
+      {/* Mobile chat input - tap directly to focus */}
       {gameState === 'lounge' && (
         <input
           ref={chatInputRef}
@@ -527,7 +558,17 @@ function App() {
               handleChatSubmit();
             }
           }}
-          placeholder="Type message..."
+          onBlur={() => {
+            // Submit on blur if there's text (mobile keyboard dismiss)
+            if (chatInputValue.trim()) {
+              handleChatSubmit();
+            }
+          }}
+          placeholder="Tap here to chat..."
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
         />
       )}
     </div>

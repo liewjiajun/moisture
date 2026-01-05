@@ -364,7 +364,8 @@ VITE_FIREBASE_APP_ID=
 - [x] **Difficulty reduction** (spawn rate halved, slower scaling)
 
 ### Known Issues
-- None currently - difficulty reduced, wallet connect fixed
+- [ ] Sound may still not work in some browsers - Love.js SDL2 audio context issues
+- [ ] Mobile chat keyboard may not appear on all devices - browser focus limitations
 
 ### Future Work
 - [ ] Background music

@@ -27,30 +27,49 @@ Sounds.definitions = {
     chat = { path = "assets/sounds/chat.wav", volume = 0.3, variants = 1 },
 }
 
--- Load a single sound (returns nil if file doesn't exist)
+-- Load a single sound (returns nil and error if file doesn't exist)
 local function loadSound(path)
     -- Skip getInfo check - doesn't work reliably in Love.js
     -- Just try to load and let pcall handle errors
-    local success, source = pcall(function()
+    local success, result = pcall(function()
         return love.audio.newSource(path, "static")
     end)
-    if success and source then
-        return source
+    if success and result then
+        return result, nil
     end
-    return nil
+    return nil, tostring(result)
 end
 
 -- Initialize sounds (call in love.load)
 function Sounds.load()
+    print("[Sounds] ========================================")
+    print("[Sounds] Loading sound effects...")
+    print("[Sounds] Audio device info:")
+
+    -- Try to get audio device info
+    pcall(function()
+        local count = love.audio.getActiveSourceCount and love.audio.getActiveSourceCount() or "N/A"
+        print("[Sounds]   Active sources: " .. tostring(count))
+    end)
+
+    local loadedCount = 0
+    local failedCount = 0
+
     for name, def in pairs(Sounds.definitions) do
-        local source = loadSound(def.path)
+        local source, err = loadSound(def.path)
         if source then
             Sounds.sources[name] = source
-            print("[Sounds] Loaded: " .. name)
+            loadedCount = loadedCount + 1
+            print("[Sounds] OK: " .. name)
         else
-            print("[Sounds] Missing: " .. name .. " (" .. def.path .. ")")
+            failedCount = failedCount + 1
+            print("[Sounds] FAILED: " .. name .. " - " .. (err or "unknown error"))
         end
     end
+
+    print("[Sounds] ========================================")
+    print("[Sounds] Loaded: " .. loadedCount .. ", Failed: " .. failedCount)
+    print("[Sounds] ========================================")
 end
 
 -- Play a sound effect
