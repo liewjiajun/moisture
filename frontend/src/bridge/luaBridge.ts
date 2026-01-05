@@ -111,10 +111,15 @@ class LuaBridge {
   }
 
   // Write message to Emscripten's virtual filesystem
-  private writeToFilesystem(event: string, data: any) {
+  private writeToFilesystem(event: string, data: any, retryCount = 0) {
     const Module = (window as any).Module;
     if (!Module?.FS) {
-      console.log('[Bridge] Module.FS not available yet');
+      if (retryCount < 50) {  // Retry for up to 5 seconds
+        console.log('[Bridge] Module.FS not available yet, retrying in 100ms...');
+        setTimeout(() => this.writeToFilesystem(event, data, retryCount + 1), 100);
+      } else {
+        console.error('[Bridge] Module.FS never became available');
+      }
       return;
     }
 
