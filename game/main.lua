@@ -1,4 +1,4 @@
--- INCREMENTAL TEST - Step 3: TouchControls, Sounds, Character
+-- INCREMENTAL TEST - Step 3b: Skip Sounds
 print("[TEST] Starting...")
 
 local function safeRequire(name)
@@ -40,9 +40,8 @@ function love.load()
     touchControls = TouchControls.new(pixelCanvas)
     print("[TEST] TouchControls created")
 
-    print("[TEST] Loading Sounds...")
-    Sounds.load()
-    print("[TEST] Sounds loaded")
+    -- SKIP SOUNDS - they cause issues with missing files
+    print("[TEST] Skipping Sounds.load()")
 
     print("[TEST] Creating player character...")
     player = {
@@ -60,7 +59,7 @@ function love.update(dt)
 end
 
 function love.draw()
-    love.graphics.clear(1, 0, 1)  -- Magenta = Step 3 works
+    love.graphics.clear(1, 0, 1)  -- Magenta = Step 3b works
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("TouchControls + Sounds + Character OK!", 10, 100)
+    love.graphics.print("No Sounds - Character OK!", 10, 100)
 end
