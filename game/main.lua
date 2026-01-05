@@ -1611,6 +1611,7 @@ function love.mousepressed(x, y, button)
             -- Check chat input click
             if sauna:isChatInputClicked(gx, gy) then
                 sauna.chatInputActive = true
+                Bridge.sendToJS("activateChatInput", {})  -- Activate React chat input
                 return
             elseif sauna:isSendButtonClicked(gx, gy) then
                 Sounds.play("click")
@@ -1704,6 +1705,7 @@ function love.touchpressed(id, x, y, dx, dy, pressure)
             if sauna:isChatInputClicked(gx, gy) then
                 sauna.chatInputActive = true
                 love.keyboard.setTextInput(true)  -- Enable on-screen keyboard on mobile
+                Bridge.sendToJS("activateChatInput", {})  -- Activate React chat input for mobile
                 return
             elseif sauna:isSendButtonClicked(gx, gy) then
                 Sounds.play("click")

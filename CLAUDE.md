@@ -427,7 +427,31 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (ConnectButton Fix, Sound Fix)**:
+**Latest Session (Wallet, Joystick, Chat, Sound Fixes)**:
+- Fixed wallet staying connected on revisit:
+  - Set `autoConnect={false}` on WalletProvider in main.tsx
+- Fixed joystick always visible:
+  - Added safety reset in touchcontrols.lua update() to handle missed touchreleased events
+  - Checks if tracked touch ID is still active via love.touch.getTouches()
+- Fixed mobile chat input:
+  - Added visible React input element at bottom of screen in lounge state
+  - Sends `activateChatInput` event from Lua to focus the input
+  - React input handles text entry and sends messages on Enter
+- Fixed sound not playing:
+  - Added WebAudio context initialization on first user interaction
+  - Browser security requires AudioContext.resume() after user gesture
+
+**Files Modified**:
+- `frontend/src/main.tsx` - Set autoConnect={false}
+- `game/src/touchcontrols.lua` - Added safety reset for joystick state
+- `frontend/src/App.tsx` - Added WebAudio init, mobile chat input, activateChatInput listener
+- `frontend/src/index.css` - Added .mobile-chat-input styles
+- `game/main.lua` - Added Bridge.sendToJS("activateChatInput") on chat click
+- `CLAUDE.md` - Updated session notes
+
+---
+
+**Previous Session (ConnectButton Fix, Sound Fix)**:
 - Fixed ConnectButton not responding to taps:
   - Root cause: `preventPullToRefresh` was blocking ALL single-finger touches
   - Solution: Only call `preventDefault()` when target is CANVAS element
@@ -439,13 +463,6 @@ _Add notes here during development sessions to preserve context across auto-comp
 - Fixed sound loading in Love.js:
   - Removed `love.filesystem.getInfo()` check (doesn't work in Love.js virtual FS)
   - Now tries direct load with pcall for error handling
-
-**Files Modified**:
-- `frontend/src/App.tsx` - Fixed touch handlers, added gameState tracking
-- `game/src/bridge.lua` - Added setGameState function
-- `game/main.lua` - Added Bridge.setGameState() calls on all state changes
-- `game/src/sounds.lua` - Removed getInfo check for Love.js compatibility
-- `CLAUDE.md` - Updated session notes
 
 ---
 

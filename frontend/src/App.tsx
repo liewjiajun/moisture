@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   ConnectButton,
   useCurrentAccount,
@@ -42,6 +42,31 @@ function App() {
     }, 45000);
     return () => clearTimeout(timeout);
   }, [isLoading]);
+
+  // Initialize WebAudio on first user interaction (browser security requirement)
+  useEffect(() => {
+    const initAudio = () => {
+      try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          const audioContext = new AudioContext();
+          audioContext.resume();
+        }
+      } catch (e) {
+        console.warn('Failed to initialize AudioContext:', e);
+      }
+      document.removeEventListener('click', initAudio);
+      document.removeEventListener('touchstart', initAudio);
+    };
+
+    document.addEventListener('click', initAudio);
+    document.addEventListener('touchstart', initAudio);
+
+    return () => {
+      document.removeEventListener('click', initAudio);
+      document.removeEventListener('touchstart', initAudio);
+    };
+  }, []);
 
   const account = useCurrentAccount();
   const client = useSuiClient();
@@ -366,6 +391,32 @@ function App() {
     return unsubscribe;
   }, []);
 
+  // Hidden chat input for mobile keyboard support
+  const chatInputRef = useRef<HTMLInputElement>(null);
+  const [chatInputValue, setChatInputValue] = useState('');
+
+  // Listen for chat activation from Lua
+  useEffect(() => {
+    const unsubscribe = luaBridge.on('activateChatInput', () => {
+      if (chatInputRef.current) {
+        chatInputRef.current.focus();
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Handle chat input submit
+  const handleChatSubmit = useCallback(() => {
+    if (chatInputValue.trim() && account) {
+      sendMessage(account.address, chatInputValue.trim());
+      setChatInputValue('');
+      if (chatInputRef.current) {
+        chatInputRef.current.blur();
+      }
+    }
+  }, [chatInputValue, account, sendMessage]);
+
   // Handle emergency exit
   const handleExit = useCallback(() => {
     if (isPlaying) {
@@ -450,6 +501,23 @@ function App() {
           </div>
         ))}
       </div>
+
+      {/* Hidden chat input for mobile keyboard support */}
+      {gameState === 'lounge' && (
+        <input
+          ref={chatInputRef}
+          type="text"
+          className="mobile-chat-input"
+          value={chatInputValue}
+          onChange={(e) => setChatInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleChatSubmit();
+            }
+          }}
+          placeholder="Type message..."
+        />
+      )}
     </div>
   );
 }

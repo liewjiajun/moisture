@@ -104,6 +104,25 @@ function TouchControls:touchreleased(id, x, y)
 end
 
 function TouchControls:update(dt)
+    -- Safety reset: check if joystick touch is still active
+    -- This handles cases where touchreleased wasn't called properly (Love.js/browser issues)
+    if self.joystick.active and self.joystick.touchId then
+        local touches = love.touch.getTouches()
+        local touchStillActive = false
+        for _, id in ipairs(touches) do
+            if id == self.joystick.touchId then
+                touchStillActive = true
+                break
+            end
+        end
+        if not touchStillActive then
+            self.joystick.active = false
+            self.joystick.touchId = nil
+            self.joystick.dx = 0
+            self.joystick.dy = 0
+        end
+    end
+
     -- Decay pulse animations
     if self.feedback.joystickPulse > 0 then
         self.feedback.joystickPulse = math.max(0, self.feedback.joystickPulse - dt * 4)
