@@ -103,14 +103,84 @@ function App() {
   }, []);
 
   // Update Lua bridge with wallet state
+  // v19: Store in window for Lua to read, and try multiple communication methods
   useEffect(() => {
     if (account) {
-      console.log('[Bridge v18] Wallet connected, sending state to Lua');
+      console.log('[Bridge v19] Wallet connected:', account.address);
+
+      // Method 1: Set global variable that Lua might be able to read
+      (window as any).WALLET_CONNECTED = true;
+      (window as any).WALLET_ADDRESS = account.address;
+
+      // Method 2: Try the bridge (may not work)
       luaBridge.setWalletState({
         connected: true,
         address: account.address,
       });
+
+      // Method 3: Simulate click on "Play as Guest" button after game loads
+      // This bypasses the bridge entirely
+      const simulateGuestClick = () => {
+        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+        if (!canvas) {
+          console.log('[Bridge v19] Canvas not found, retrying...');
+          setTimeout(simulateGuestClick, 500);
+          return;
+        }
+
+        // Wait for game to be fully initialized
+        if (!(window as any).Module || !(window as any).Module.calledRun) {
+          console.log('[Bridge v19] Module not ready, retrying...');
+          setTimeout(simulateGuestClick, 500);
+          return;
+        }
+
+        const rect = canvas.getBoundingClientRect();
+        // "Play as Guest" button is at game coords (40-140, 230-254), center ~(90, 242)
+        // Game is 180x320, canvas display may be different
+        const scaleX = rect.width / 180;
+        const scaleY = rect.height / 320;
+        const clickX = rect.left + 90 * scaleX;
+        const clickY = rect.top + 242 * scaleY;
+
+        console.log('[Bridge v19] Clicking Play as Guest at:', clickX, clickY);
+
+        // Use pointer events which SDL2 should handle
+        const pointerDown = new PointerEvent('pointerdown', {
+          bubbles: true,
+          cancelable: true,
+          clientX: clickX,
+          clientY: clickY,
+          pointerId: 1,
+          pointerType: 'touch',
+          isPrimary: true,
+          button: 0,
+          buttons: 1,
+        });
+        const pointerUp = new PointerEvent('pointerup', {
+          bubbles: true,
+          cancelable: true,
+          clientX: clickX,
+          clientY: clickY,
+          pointerId: 1,
+          pointerType: 'touch',
+          isPrimary: true,
+          button: 0,
+          buttons: 0,
+        });
+
+        canvas.dispatchEvent(pointerDown);
+        setTimeout(() => {
+          canvas.dispatchEvent(pointerUp);
+          console.log('[Bridge v19] Click events dispatched');
+        }, 100);
+      };
+
+      // Wait for game to fully initialize before clicking
+      setTimeout(simulateGuestClick, 2000);
     } else {
+      (window as any).WALLET_CONNECTED = false;
+      (window as any).WALLET_ADDRESS = null;
       luaBridge.setWalletState({
         connected: false,
         address: null,

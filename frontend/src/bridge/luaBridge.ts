@@ -111,35 +111,15 @@ class LuaBridge {
   }
 
   // Write message to Emscripten's virtual filesystem
+  // Note: This rarely works due to FS accessibility issues in Love.js
+  // The real communication happens via click simulation in App.tsx
   private writeToFilesystem(event: string, data: any) {
-    // Check for LoveFS (exposed after runtime initialization)
-    const FS = (window as any).LoveFS || (window as any).Module?.FS;
-
-    if (!FS) {
-      // Queue the message for later processing
-      console.log('[Bridge v18] FS not ready, queueing message:', event);
-      if (!(window as any).pendingBridgeWrites) {
-        (window as any).pendingBridgeWrites = [];
-      }
-      (window as any).pendingBridgeWrites.push({ event, data });
-      return;
+    console.log('[Bridge v19] Queuing message (FS bridge unreliable):', event);
+    // Just queue - the click simulation is the real workaround
+    if (!(window as any).pendingBridgeWrites) {
+      (window as any).pendingBridgeWrites = [];
     }
-
-    const message = JSON.stringify({ event, data, timestamp: Date.now() });
-    console.log('[Bridge v18] Writing to filesystem:', event);
-
-    try {
-      // Create directory if needed (may already exist)
-      try { FS.mkdir('/home'); } catch (e) {}
-      try { FS.mkdir('/home/web_user'); } catch (e) {}
-      try { FS.mkdir('/home/web_user/love'); } catch (e) {}
-      try { FS.mkdir('/home/web_user/love/moisture'); } catch (e) {}
-
-      FS.writeFile('/home/web_user/love/moisture/bridge_inbox.txt', message);
-      console.log('[Bridge v18] Successfully wrote to filesystem!');
-    } catch (e) {
-      console.error('[Bridge v18] Failed to write:', e);
-    }
+    (window as any).pendingBridgeWrites.push({ event, data });
   }
 
   // Receive events from Lua
