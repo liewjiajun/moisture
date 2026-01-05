@@ -1,5 +1,5 @@
--- INCREMENTAL TEST - Step 1: Just requires
-print("[TEST] Starting with requires...")
+-- INCREMENTAL TEST - Step 2: PixelCanvas initialization
+print("[TEST] Starting...")
 
 local function safeRequire(name)
     print("[TEST] Requiring: " .. name)
@@ -25,8 +25,16 @@ local Sounds = safeRequire("src.sounds")
 
 print("[TEST] All requires done")
 
+local pixelCanvas
+
 function love.load()
     print("[TEST] love.load called")
+
+    print("[TEST] Creating PixelCanvas...")
+    pixelCanvas = PixelCanvas.new()
+    print("[TEST] PixelCanvas created: " .. tostring(pixelCanvas))
+
+    print("[TEST] love.load complete")
 end
 
 function love.update(dt)
@@ -35,7 +43,7 @@ end
 
 function love.draw()
     print("[TEST] love.draw called")
-    love.graphics.clear(0, 1, 0)  -- Green screen = requires work
+    love.graphics.clear(0, 0, 1)  -- Blue screen = PixelCanvas works
     love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Requires loaded OK!", 100, 100)
+    love.graphics.print("PixelCanvas OK!", 100, 100)
 end
