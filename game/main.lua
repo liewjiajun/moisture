@@ -1,15 +1,32 @@
 -- MOISTURE: The Viscous High-Stakes Survivor
 -- Touhou-Style Bullet Hell with Bouncing Bullets
 
-local PixelCanvas = require("src.pixelcanvas")
-local Character = require("src.character")
-local TouchControls = require("src.touchcontrols")
-local Enemies = require("src.enemies")
-local Bridge = require("src.bridge")
-local Cards = require("src.cards")
-local Upgrades = require("src.upgrades")
-local Sauna = require("src.sauna")
-local Sounds = require("src.sounds")
+print("[MOISTURE] main.lua loading...")
+
+-- Safe require function with logging
+local function safeRequire(name)
+    print("[MOISTURE] Requiring: " .. name)
+    local success, result = pcall(require, name)
+    if success then
+        print("[MOISTURE] Loaded: " .. name)
+        return result
+    else
+        print("[MOISTURE] FAILED to load: " .. name .. " - " .. tostring(result))
+        return nil
+    end
+end
+
+local PixelCanvas = safeRequire("src.pixelcanvas")
+local Character = safeRequire("src.character")
+local TouchControls = safeRequire("src.touchcontrols")
+local Enemies = safeRequire("src.enemies")
+local Bridge = safeRequire("src.bridge")
+local Cards = safeRequire("src.cards")
+local Upgrades = safeRequire("src.upgrades")
+local Sauna = safeRequire("src.sauna")
+local Sounds = safeRequire("src.sounds")
+
+print("[MOISTURE] All modules loaded")
 
 -- Game states
 local STATE = {
@@ -61,65 +78,124 @@ local crtEnabled = true
 -- Sauna lounge
 local sauna = nil
 
+-- Debug frame counter
+local frameCount = 0
+
 function love.load()
-    -- Pixel-perfect rendering (setLineStyle removed - not supported in WebGL)
+    print("[MOISTURE] love.load() starting...")
+
+    print("[MOISTURE] Setting default filter...")
     love.graphics.setDefaultFilter("nearest", "nearest")
 
-    -- Initialize systems
-    pixelCanvas = PixelCanvas.new()
-    touchControls = TouchControls.new(pixelCanvas)
-    cards = Cards.new()
-    upgrades = Upgrades.new()
-    Bridge.init()
-    Sounds.load()
+    print("[MOISTURE] Creating PixelCanvas...")
+    local pcSuccess, pcErr = pcall(function()
+        pixelCanvas = PixelCanvas.new()
+    end)
+    if not pcSuccess then
+        print("[MOISTURE] PixelCanvas FAILED:", pcErr)
+    else
+        print("[MOISTURE] PixelCanvas created:", tostring(pixelCanvas))
+    end
 
-    -- Create pixel fonts with fallback for Love.js
+    print("[MOISTURE] Creating TouchControls...")
+    local tcSuccess, tcErr = pcall(function()
+        touchControls = TouchControls.new(pixelCanvas)
+    end)
+    if not tcSuccess then
+        print("[MOISTURE] TouchControls FAILED:", tcErr)
+    end
+
+    print("[MOISTURE] Creating Cards...")
+    local cardsSuccess, cardsErr = pcall(function()
+        cards = Cards.new()
+    end)
+    if not cardsSuccess then
+        print("[MOISTURE] Cards FAILED:", cardsErr)
+    end
+
+    print("[MOISTURE] Creating Upgrades...")
+    local upSuccess, upErr = pcall(function()
+        upgrades = Upgrades.new()
+    end)
+    if not upSuccess then
+        print("[MOISTURE] Upgrades FAILED:", upErr)
+    end
+
+    print("[MOISTURE] Initializing Bridge...")
+    local bridgeSuccess, bridgeErr = pcall(function()
+        Bridge.init()
+    end)
+    if not bridgeSuccess then
+        print("[MOISTURE] Bridge FAILED:", bridgeErr)
+    end
+
+    print("[MOISTURE] Loading Sounds...")
+    local soundSuccess, soundErr = pcall(function()
+        Sounds.load()
+    end)
+    if not soundSuccess then
+        print("[MOISTURE] Sounds FAILED:", soundErr)
+    end
+
+    print("[MOISTURE] Creating fonts...")
     local fontSuccess = pcall(function()
         fonts.small = love.graphics.newFont(8)
         fonts.medium = love.graphics.newFont(12)
         fonts.large = love.graphics.newFont(16)
     end)
+    print("[MOISTURE] Fonts created:", fontSuccess)
     if not fontSuccess then
         local defaultFont = love.graphics.getFont()
         fonts.small = defaultFont
         fonts.medium = defaultFont
         fonts.large = defaultFont
-        print("[Fonts] Using default font as fallback")
+        print("[MOISTURE] Using default font as fallback")
     end
 
-    -- Load CRT shader
+    print("[MOISTURE] Loading CRT shader...")
     local success, shader = pcall(function()
         return love.graphics.newShader("shaders/crt.glsl")
     end)
+    print("[MOISTURE] Shader loaded:", success)
     if success then
         crtShader = shader
     else
-        print("CRT shader failed to load:", shader)
+        print("[MOISTURE] CRT shader failed:", shader)
     end
 
-    -- Set up touch handlers
+    print("[MOISTURE] Setting up touch handlers...")
     love.handlers.startgame = function()
         startGame()
     end
 
-    -- Initialize sauna with fallback for Love.js
+    print("[MOISTURE] Creating Sauna...")
     local saunaSuccess, saunaResult = pcall(function()
         return Sauna.new(pixelCanvas:getWidth(), pixelCanvas:getHeight())
     end)
+    print("[MOISTURE] Sauna created:", saunaSuccess)
     if saunaSuccess then
         sauna = saunaResult
     else
-        print("[Sauna] Failed to create:", saunaResult)
+        print("[MOISTURE] Sauna failed:", saunaResult)
         sauna = {
             update = function() end,
             draw = function() end,
+            drawBackground = function() end,
             touchpressed = function() end,
             touchmoved = function() end,
             touchreleased = function() end,
             keypressed = function() end,
             textinput = function() end,
+            handleKeyPressed = function() return false end,
+            handleTextInput = function() end,
+            isChatInputClicked = function() return false end,
+            isSendButtonClicked = function() return false end,
+            isDoorToggleClicked = function() return false end,
+            isDoorEnterClicked = function() return false end,
         }
     end
+
+    print("[MOISTURE] love.load() COMPLETE!")
 end
 
 function love.resize(w, h)
@@ -127,6 +203,11 @@ function love.resize(w, h)
 end
 
 function love.update(dt)
+    frameCount = frameCount + 1
+    if frameCount <= 5 then
+        print("[MOISTURE] love.update() frame " .. frameCount)
+    end
+
     gameTime = gameTime + dt
 
     -- Update shake
@@ -952,6 +1033,10 @@ function playerDeath()
 end
 
 function love.draw()
+    if frameCount <= 5 then
+        print("[MOISTURE] love.draw() frame " .. frameCount)
+    end
+
     pixelCanvas:startDraw()
 
     love.graphics.push()
