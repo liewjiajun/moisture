@@ -20,8 +20,32 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
     if (loadedRef.current) return;
     loadedRef.current = true;
 
+    // Global error handlers to catch JavaScript-level errors
+    window.onerror = (msg, source, lineno, colno, error) => {
+      console.error('[GLOBAL ERROR]', msg, 'at', source, ':', lineno, ':', colno);
+      if (error?.stack) {
+        console.error('[GLOBAL ERROR STACK]', error.stack);
+      }
+      return false;
+    };
+
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('[UNHANDLED PROMISE REJECTION]', event.reason);
+    });
+
     const loadLoveJS = async () => {
       try {
+        // Check WebGL availability first
+        const testCanvas = document.createElement('canvas');
+        const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
+        if (gl) {
+          console.log('[WebGL] Available:', gl.getParameter(gl.VERSION));
+          console.log('[WebGL] Vendor:', gl.getParameter(gl.VENDOR));
+          console.log('[WebGL] Renderer:', gl.getParameter(gl.RENDERER));
+        } else {
+          console.error('[WebGL] NOT available - game will fail!');
+        }
+
         // Create canvas element with explicit dimensions
         const canvas = document.createElement('canvas');
         canvas.id = 'canvas';
@@ -83,6 +107,15 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
 
           onRuntimeInitialized: () => {
             console.log('Love.js runtime initialized');
+          },
+
+          // Error handlers to catch WASM/Emscripten errors
+          onAbort: (what: any) => {
+            console.error('[LOVE.JS ABORT]', what);
+          },
+
+          quit: (status: number, toThrow: any) => {
+            console.error('[LOVE.JS QUIT] status:', status, 'error:', toThrow);
           },
         };
 
