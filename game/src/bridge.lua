@@ -35,11 +35,16 @@ Bridge.isBrowser = nil
 
 function Bridge.init()
     -- Detect browser environment (Love.js) - must be done after runtime init
-    Bridge.isBrowser = love.system.getOS() == "Web"
+    local detectedOS = love.system.getOS()
+    print("[Bridge] OS detected: " .. tostring(detectedOS))
+
+    -- Check for js global first (more reliable in Love.js)
+    Bridge.isBrowser = (type(js) == "table" and js.global ~= nil)
     if not Bridge.isBrowser then
-        -- Fallback check for js global
-        Bridge.isBrowser = (type(js) == "table" and js.global ~= nil)
+        -- Fallback to OS check
+        Bridge.isBrowser = (detectedOS == "Web")
     end
+    print("[Bridge] isBrowser = " .. tostring(Bridge.isBrowser))
 
     -- Set up global functions for JS to call
     if Bridge.isBrowser and js then
@@ -110,7 +115,14 @@ end
 
 -- Poll for pending messages from JavaScript (called every frame)
 function Bridge.pollMessages()
-    if not Bridge.isBrowser then return end
+    if not Bridge.isBrowser then
+        -- Only warn once to avoid console spam
+        if not Bridge._warnedNotBrowser then
+            print("[Bridge] WARNING: pollMessages skipped - isBrowser is false")
+            Bridge._warnedNotBrowser = true
+        end
+        return
+    end
 
     -- Try to get pending messages from JavaScript
     local success, json = pcall(function()
@@ -120,11 +132,22 @@ function Bridge.pollMessages()
         return "[]"
     end)
 
-    if not success or not json or json == "[]" or json == "" then return end
+    if not success then
+        print("[Bridge] ERROR: pcall failed in pollMessages")
+        return
+    end
+
+    if not json or json == "[]" or json == "" then return end
+
+    -- Debug: Log received messages
+    print("[Bridge] Received messages: " .. string.sub(json, 1, 100))
 
     -- Parse and handle each message
     local messages = Bridge.parseMessages(json)
-    if not messages then return end
+    if not messages then
+        print("[Bridge] ERROR: parseMessages returned nil")
+        return
+    end
 
     for _, msg in ipairs(messages) do
         Bridge.handleMessage(msg)
