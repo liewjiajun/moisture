@@ -42,13 +42,31 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
     // Love.js uses alert() internally for errors, which creates ugly popups on mobile
     window.alert = (message: string) => {
       console.error('[ALERT INTERCEPTED]', message);
+
+      // Gather diagnostic info
+      const testCanvas = document.createElement('canvas');
+      const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
+      const webglInfo = gl ? {
+        version: gl.getParameter(gl.VERSION),
+        vendor: gl.getParameter(gl.VENDOR),
+        renderer: gl.getParameter(gl.RENDERER),
+      } : null;
+
+      const diagnostics = `
+        WebGL: ${webglInfo ? 'Available' : 'NOT AVAILABLE'}
+        ${webglInfo ? `Version: ${webglInfo.version}` : ''}
+        ${webglInfo ? `Renderer: ${webglInfo.renderer}` : ''}
+        User Agent: ${navigator.userAgent.substring(0, 100)}...
+      `.trim();
+
       // Show as styled error instead of popup
       if (containerRef.current) {
         containerRef.current.innerHTML = `
           <div style="color: #ff6b6b; padding: 20px; text-align: center; font-family: monospace;">
             <h3 style="margin-bottom: 10px;">Game Error</h3>
             <p style="margin-bottom: 8px; font-size: 12px; word-break: break-word;">${message}</p>
-            <p style="margin-top: 16px; font-size: 12px; opacity: 0.5;">Try refreshing the page</p>
+            <pre style="margin-top: 12px; font-size: 10px; text-align: left; background: #1a1a1a; padding: 10px; border-radius: 4px; white-space: pre-wrap; word-break: break-all;">${diagnostics}</pre>
+            <p style="margin-top: 16px; font-size: 12px; opacity: 0.5;">Try using a regular browser like Chrome or Safari</p>
           </div>
         `;
       }
