@@ -42,6 +42,7 @@ local STATE = {
 local state = STATE.MENU
 local isGuest = false
 local isPracticeGame = false
+local hasAutoTransitionedToLounge = false  -- v24: Prevent infinite menu->lounge loop
 local countdownTimer = 0
 local pixelCanvas
 local touchControls
@@ -327,8 +328,10 @@ function love.update(dt)
 end
 
 function updateMenu(dt)
-    -- Auto-transition to LOUNGE when wallet connects
-    if Bridge.walletConnected then
+    -- v24: Only auto-transition ONCE when wallet connects, not every frame
+    -- This allows users to return to menu from lounge even when connected
+    if Bridge.walletConnected and not hasAutoTransitionedToLounge then
+        hasAutoTransitionedToLounge = true
         isGuest = false
         state = STATE.LOUNGE
         Bridge.setGameState(state)

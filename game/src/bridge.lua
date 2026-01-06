@@ -276,6 +276,13 @@ function Bridge.init()
     -- No polling needed - args are available immediately at startup
     Bridge.needsInitPoll = false
 
+    -- v24 FIX: Always ensure characterSeed has a value (fixes mobile crash)
+    -- On mobile, the arg table may not exist, causing characterSeed to be nil
+    if not Bridge.characterSeed then
+        Bridge.characterSeed = os.time() + math.random(1, 999999)
+        print("[Bridge v24] Generated fallback characterSeed: " .. tostring(Bridge.characterSeed))
+    end
+
     -- Debug: Log filesystem paths for reference
     if Bridge.isBrowser then
         local saveDir = love.filesystem.getSaveDirectory()
