@@ -9,6 +9,11 @@ declare global {
   interface Window {
     Module: any;
     Love: any;
+    INITIAL_WALLET_STATE?: {
+      connected: boolean;
+      address: string | null;
+      characterSeed: number;
+    };
   }
 }
 
@@ -111,8 +116,33 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           },
 
           onRuntimeInitialized: () => {
-            console.log('[GameCanvas v19] Love.js runtime initialized');
-            // Mark that Love.js is ready (for click simulation timing)
+            console.log('[GameCanvas v20] Love.js runtime initialized');
+
+            // Write initial wallet state to virtual filesystem for Lua to read
+            const initialState = window.INITIAL_WALLET_STATE || {
+              connected: false,
+              address: null,
+              characterSeed: Date.now() % 999999999,
+            };
+
+            console.log('[GameCanvas v20] Writing initial state to FS:', initialState);
+
+            try {
+              if (window.Module && window.Module.FS) {
+                // Write to the save directory that Lua can read
+                // Love.js uses /home/web_user/.local/share/<identity>/ for save directory
+                // But we can also write to root which Lua can access
+                const stateJson = JSON.stringify(initialState);
+                window.Module.FS.writeFile('/bridge_init.json', stateJson);
+                console.log('[GameCanvas v20] Initial state written to /bridge_init.json');
+              } else {
+                console.error('[GameCanvas v20] Module.FS not available');
+              }
+            } catch (e) {
+              console.error('[GameCanvas v20] Failed to write initial state:', e);
+            }
+
+            // Mark that Love.js is ready
             (window as any).Module.calledRun = true;
           },
 

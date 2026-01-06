@@ -33,10 +33,46 @@ Bridge.outQueue = {}
 -- Browser detection (set in init() after runtime is ready)
 Bridge.isBrowser = nil
 
+-- Parse initial state JSON from bridge_init.json
+-- Format: {"connected":true,"address":"0x...","characterSeed":123456}
+function Bridge.parseInitJSON(str)
+    if not str or str == "" then return nil end
+
+    local data = {}
+
+    -- Extract connected (boolean)
+    local connected = str:match('"connected":(%w+)')
+    if connected then
+        data.connected = (connected == "true")
+    end
+
+    -- Extract address (string or null)
+    local address = str:match('"address":"([^"]*)"')
+    if address and address ~= "" then
+        data.address = address
+    else
+        -- Check for null
+        local nullCheck = str:match('"address":null')
+        if nullCheck then
+            data.address = nil
+        end
+    end
+
+    -- Extract characterSeed (number)
+    local seed = str:match('"characterSeed":(%d+)')
+    if seed then
+        data.characterSeed = tonumber(seed)
+    end
+
+    return data
+end
+
 function Bridge.init()
+    print("[Bridge v20] init() starting...")
+
     -- Detect browser environment (Love.js) - must be done after runtime init
     local detectedOS = love.system.getOS()
-    print("[Bridge] OS detected: " .. tostring(detectedOS))
+    print("[Bridge v20] OS detected: " .. tostring(detectedOS))
 
     -- Check for js global first (more reliable in Love.js)
     Bridge.isBrowser = (type(js) == "table" and js.global ~= nil)
@@ -44,20 +80,66 @@ function Bridge.init()
         -- Fallback to OS check
         Bridge.isBrowser = (detectedOS == "Web")
     end
-    print("[Bridge] isBrowser = " .. tostring(Bridge.isBrowser))
+    print("[Bridge v20] isBrowser = " .. tostring(Bridge.isBrowser))
+
+    -- ===== V20: Read initial state from bridge_init.json =====
+    -- This file is written by React before Lua starts
+    print("[Bridge v20] Attempting to read /bridge_init.json...")
+    local initContent = nil
+
+    -- Try reading from root (where React writes it via Module.FS)
+    local success, result = pcall(function()
+        -- Love.js maps Module.FS root to love.filesystem paths
+        -- Try multiple possible locations
+        local content = love.filesystem.read("/bridge_init.json")
+        if content then return content end
+
+        -- Also try without leading slash
+        content = love.filesystem.read("bridge_init.json")
+        if content then return content end
+
+        return nil
+    end)
+
+    if success and result and result ~= "" then
+        initContent = result
+        print("[Bridge v20] Read bridge_init.json: " .. string.sub(tostring(initContent), 1, 100))
+    else
+        print("[Bridge v20] Could not read bridge_init.json (file may not exist yet)")
+    end
+
+    -- Parse the initial state if we got it
+    if initContent then
+        local initData = Bridge.parseInitJSON(initContent)
+        if initData then
+            print("[Bridge v20] Parsed initial state:")
+            print("[Bridge v20]   connected: " .. tostring(initData.connected))
+            print("[Bridge v20]   address: " .. tostring(initData.address))
+            print("[Bridge v20]   characterSeed: " .. tostring(initData.characterSeed))
+
+            -- Apply the initial state
+            Bridge.walletConnected = initData.connected == true
+            Bridge.walletAddress = initData.address
+            if initData.characterSeed then
+                Bridge.characterSeed = initData.characterSeed
+            end
+        else
+            print("[Bridge v20] Failed to parse bridge_init.json content")
+        end
+    end
 
     -- Debug: Log filesystem paths for bridge setup
     if Bridge.isBrowser then
         local saveDir = love.filesystem.getSaveDirectory()
         local sourceDir = love.filesystem.getSource()
         local identity = love.filesystem.getIdentity()
-        print("[Bridge] Save directory: " .. tostring(saveDir))
-        print("[Bridge] Source directory: " .. tostring(sourceDir))
-        print("[Bridge] Identity: " .. tostring(identity))
+        print("[Bridge v20] Save directory: " .. tostring(saveDir))
+        print("[Bridge v20] Source directory: " .. tostring(sourceDir))
+        print("[Bridge v20] Identity: " .. tostring(identity))
     end
 
-    -- Set up global functions for JS to call
-    if Bridge.isBrowser and js then
+    -- Set up global functions for JS to call (legacy, may not work in all Love.js builds)
+    if Bridge.isBrowser and type(js) == "table" and js.global then
         -- Expose Lua functions to JavaScript
         js.global.luaBridge = {
             setWalletState = function(connected, address)
@@ -121,6 +203,8 @@ function Bridge.init()
             end
         }
     end
+
+    print("[Bridge v20] init() complete - walletConnected=" .. tostring(Bridge.walletConnected))
 end
 
 -- Poll for pending messages from JavaScript (called every frame)

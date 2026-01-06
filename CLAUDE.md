@@ -484,7 +484,38 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Wallet→Sauna Fix v9 - Cache Busting)**:
+**Latest Session (v20 - Defer Game Load Until Wallet Decision)**:
+Fixed wallet connection flow by deferring game loading until user makes wallet/guest choice.
+
+**Root Cause**: Previous attempts (v18-v19) failed because:
+- `js.global` doesn't exist in this Love.js build
+- `Module.FS` is only available during `onRuntimeInitialized`, not at runtime
+- Click simulation approach was wrong (clicked "Play as Guest" instead of respecting wallet state)
+
+**Solution**: Defer game loading until wallet decision
+1. React shows landing screen first (Connect Wallet / Play as Guest)
+2. User makes choice → store state in `window.INITIAL_WALLET_STATE`
+3. Only THEN render GameCanvas and load Love.js
+4. `onRuntimeInitialized` writes state to `Module.FS` as `/bridge_init.json`
+5. Lua's `Bridge.init()` reads the file and sets `Bridge.walletConnected`
+6. `love.load()` starts directly in LOUNGE state with correct `isGuest` flag
+
+**Files Modified**:
+- `frontend/src/App.tsx` - Added gameMode state, landing screen, INITIAL_WALLET_STATE
+- `frontend/src/components/GameCanvas.tsx` - Write bridge_init.json in onRuntimeInitialized
+- `frontend/src/index.css` - Added landing screen styles
+- `game/src/bridge.lua` - Added parseInitJSON(), read bridge_init.json in init()
+- `game/main.lua` - Start in LOUNGE with correct isGuest based on Bridge.walletConnected
+
+**Key Changes**:
+- Users see React landing screen before game loads
+- Character seed is deterministic from wallet address: `parseInt(address.slice(2,18), 16) % 999999999`
+- Both wallet and guest users go directly to LOUNGE (no Lua MENU needed)
+- Build UUID: `ef908681-633b-419f-ad3a-77e5dfb2607a`
+
+---
+
+**Previous Session (Wallet→Sauna Fix v9 - Cache Busting)**:
 Fixed wallet not transitioning to sauna after connect.
 
 **Root Cause Chain**:

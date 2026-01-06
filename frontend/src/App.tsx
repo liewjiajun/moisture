@@ -24,8 +24,28 @@ const ORACLE_CAP_ID = import.meta.env.VITE_ORACLE_CAP_ID || '0x0';
 // Entry fee in MIST (0.1 SUI = 100,000,000 MIST)
 const ENTRY_FEE = 100_000_000n;
 
+// Generate deterministic character seed from wallet address
+function generateSeedFromAddress(address: string): number {
+  // Use first 16 hex chars after 0x prefix
+  const hexPart = address.slice(2, 18);
+  return parseInt(hexPart, 16) % 999999999;
+}
+
+// Extend Window interface for initial wallet state
+declare global {
+  interface Window {
+    INITIAL_WALLET_STATE?: {
+      connected: boolean;
+      address: string | null;
+      characterSeed: number;
+    };
+  }
+}
+
 function App() {
-  const [isLoading, setIsLoading] = useState(true);
+  // Game mode: 'pending' = show landing screen, 'guest' or 'wallet' = load game
+  const [gameMode, setGameMode] = useState<'pending' | 'guest' | 'wallet'>('pending');
+  const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
@@ -33,7 +53,10 @@ function App() {
   const [gameState, setGameState] = useState<string>('menu'); // Track Lua game state
 
   // Loading timeout (45 seconds - WASM files are large)
+  // Only applies when game is actually loading (not in pending state)
   useEffect(() => {
+    if (gameMode === 'pending') return;
+
     const timeout = setTimeout(() => {
       if (isLoading) {
         setLoadError('Game engine failed to load. Please refresh the page.');
@@ -41,7 +64,7 @@ function App() {
       }
     }, 45000);
     return () => clearTimeout(timeout);
-  }, [isLoading]);
+  }, [isLoading, gameMode]);
 
   // Resume Love.js SDL2 audio context on first user interaction
   useEffect(() => {
@@ -102,91 +125,24 @@ function App() {
     }, 5000);
   }, []);
 
-  // Update Lua bridge with wallet state
-  // v19: Store in window for Lua to read, and try multiple communication methods
+  // Update Lua bridge with wallet state (for runtime changes after game loaded)
+  // Note: Initial state is passed via INITIAL_WALLET_STATE before game loads
   useEffect(() => {
+    if (gameMode === 'pending') return; // Don't do anything before game mode is chosen
+
     if (account) {
-      console.log('[Bridge v19] Wallet connected:', account.address);
-
-      // Method 1: Set global variable that Lua might be able to read
-      (window as any).WALLET_CONNECTED = true;
-      (window as any).WALLET_ADDRESS = account.address;
-
-      // Method 2: Try the bridge (may not work)
+      console.log('[Bridge v20] Wallet connected:', account.address);
       luaBridge.setWalletState({
         connected: true,
         address: account.address,
       });
-
-      // Method 3: Simulate click on "Play as Guest" button after game loads
-      // This bypasses the bridge entirely
-      const simulateGuestClick = () => {
-        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-        if (!canvas) {
-          console.log('[Bridge v19] Canvas not found, retrying...');
-          setTimeout(simulateGuestClick, 500);
-          return;
-        }
-
-        // Wait for game to be fully initialized
-        if (!(window as any).Module || !(window as any).Module.calledRun) {
-          console.log('[Bridge v19] Module not ready, retrying...');
-          setTimeout(simulateGuestClick, 500);
-          return;
-        }
-
-        const rect = canvas.getBoundingClientRect();
-        // "Play as Guest" button is at game coords (40-140, 230-254), center ~(90, 242)
-        // Game is 180x320, canvas display may be different
-        const scaleX = rect.width / 180;
-        const scaleY = rect.height / 320;
-        const clickX = rect.left + 90 * scaleX;
-        const clickY = rect.top + 242 * scaleY;
-
-        console.log('[Bridge v19] Clicking Play as Guest at:', clickX, clickY);
-
-        // Use pointer events which SDL2 should handle
-        const pointerDown = new PointerEvent('pointerdown', {
-          bubbles: true,
-          cancelable: true,
-          clientX: clickX,
-          clientY: clickY,
-          pointerId: 1,
-          pointerType: 'touch',
-          isPrimary: true,
-          button: 0,
-          buttons: 1,
-        });
-        const pointerUp = new PointerEvent('pointerup', {
-          bubbles: true,
-          cancelable: true,
-          clientX: clickX,
-          clientY: clickY,
-          pointerId: 1,
-          pointerType: 'touch',
-          isPrimary: true,
-          button: 0,
-          buttons: 0,
-        });
-
-        canvas.dispatchEvent(pointerDown);
-        setTimeout(() => {
-          canvas.dispatchEvent(pointerUp);
-          console.log('[Bridge v19] Click events dispatched');
-        }, 100);
-      };
-
-      // Wait for game to fully initialize before clicking
-      setTimeout(simulateGuestClick, 2000);
     } else {
-      (window as any).WALLET_CONNECTED = false;
-      (window as any).WALLET_ADDRESS = null;
       luaBridge.setWalletState({
         connected: false,
         address: null,
       });
     }
-  }, [account]);
+  }, [account, gameMode]);
 
   // Sync chat messages to Lua
   useEffect(() => {
@@ -530,6 +486,63 @@ function App() {
     window.location.reload();
   }, []);
 
+  // Handler for Play as Guest button
+  const handlePlayAsGuest = useCallback(() => {
+    console.log('[App v20] Play as Guest clicked');
+    window.INITIAL_WALLET_STATE = {
+      connected: false,
+      address: null,
+      characterSeed: Math.floor(Math.random() * 999999999),
+    };
+    setIsLoading(true);
+    setGameMode('guest');
+  }, []);
+
+  // Handler for Connect Wallet success - called after wallet is connected
+  const handleWalletConnected = useCallback(() => {
+    if (!account) return;
+    console.log('[App v20] Wallet connected, starting game:', account.address);
+    window.INITIAL_WALLET_STATE = {
+      connected: true,
+      address: account.address,
+      characterSeed: generateSeedFromAddress(account.address),
+    };
+    setIsLoading(true);
+    setGameMode('wallet');
+  }, [account]);
+
+  // Watch for account changes when in pending mode
+  useEffect(() => {
+    if (gameMode === 'pending' && account) {
+      // Wallet just connected while in pending mode
+      handleWalletConnected();
+    }
+  }, [account, gameMode, handleWalletConnected]);
+
+  // Landing screen (shown before game loads)
+  if (gameMode === 'pending') {
+    return (
+      <div className="game-container landing-screen">
+        <div className="landing-content">
+          <h1 className="landing-title">MOISTURE</h1>
+          <p className="landing-subtitle">The Viscous High-Stakes Survivor</p>
+
+          <div className="landing-buttons">
+            <div className="landing-wallet-button">
+              <ConnectButton />
+            </div>
+
+            <button className="landing-guest-button" onClick={handlePlayAsGuest}>
+              PLAY AS GUEST
+            </button>
+          </div>
+
+          <p className="landing-hint">Guests can practice for free</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="game-container">
       {/* Loading screen */}
@@ -554,18 +567,11 @@ function App() {
         </div>
       )}
 
-      {/* Game canvas */}
+      {/* Game canvas - only rendered after game mode is chosen */}
       <GameCanvas onLoad={() => { setIsLoading(false); setLoadError(null); }} />
 
-      {/* Wallet connect button - centered on menu screen when not connected */}
-      {!account && gameState === 'menu' && !isLoading && !loadError && (
-        <div className="overlay wallet-overlay menu-center">
-          <ConnectButton />
-        </div>
-      )}
-
       {/* Connected wallet indicator */}
-      {account && !isPlaying && (
+      {account && !isPlaying && gameMode === 'wallet' && (
         <div className="overlay wallet-indicator">
           <span className="wallet-address">
             {account.address.slice(0, 6)}...{account.address.slice(-4)}
