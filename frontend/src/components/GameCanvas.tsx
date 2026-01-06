@@ -38,9 +38,25 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
       console.error('[UNHANDLED PROMISE REJECTION]', event.reason);
     });
 
+    // v25: Helper to show error message in container
+    const showError = (title: string, message: string, details?: string) => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = `
+          <div style="color: #ff6b6b; padding: 20px; text-align: center; font-family: monospace;">
+            <h3 style="margin-bottom: 10px;">${title}</h3>
+            <p style="margin-bottom: 8px;">${message}</p>
+            ${details ? `<p style="font-size: 11px; opacity: 0.6; word-break: break-all;">${details}</p>` : ''}
+            <p style="margin-top: 16px; font-size: 12px; opacity: 0.5;">Try refreshing or use a different browser</p>
+          </div>
+        `;
+      }
+    };
+
     const loadLoveJS = async () => {
       try {
-        // Check WebGL availability first
+        console.log('[GameCanvas v25] Starting initialization...');
+
+        // v25: Check WebGL availability - ABORT if not available
         const testCanvas = document.createElement('canvas');
         const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
         if (gl) {
@@ -48,7 +64,10 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           console.log('[WebGL] Vendor:', gl.getParameter(gl.VENDOR));
           console.log('[WebGL] Renderer:', gl.getParameter(gl.RENDERER));
         } else {
-          console.error('[WebGL] NOT available - game will fail!');
+          console.error('[WebGL] NOT available - cannot run game');
+          showError('WebGL Not Supported', 'Your browser does not support WebGL graphics.', 'This game requires WebGL to run.');
+          onLoad();
+          return; // v25: Don't proceed without WebGL
         }
 
         // Create canvas element with explicit dimensions
@@ -75,7 +94,7 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           containerRef.current.appendChild(canvas);
         }
 
-        // v23: Build Module.arguments with wallet state
+        // v25: Build Module.arguments with wallet state (safer validation)
         // This is passed to Lua's `arg` table at Emscripten C level (no JS FFI needed!)
         const walletState = window.INITIAL_WALLET_STATE || {
           connected: false,
@@ -83,21 +102,23 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           characterSeed: Date.now() % 999999999,
         };
 
-        console.log('[GameCanvas v23] Building Module.arguments with wallet state:', walletState);
+        console.log('[GameCanvas v25] Building Module.arguments with wallet state:', walletState);
 
-        // Encode wallet state as command-line arguments for Lua
-        const args: string[] = ['./'];  // First arg is always the game directory
-        if (walletState.connected) {
+        // v25: Safer argument building - validate all types
+        const args: string[] = ['.'];  // Use '.' instead of './' - simpler path for mobile
+        if (walletState.connected === true) {
           args.push('--wallet-connected');
         }
-        if (walletState.address) {
-          args.push('--address', walletState.address);
+        if (walletState.address && typeof walletState.address === 'string' && walletState.address.length > 0) {
+          args.push('--address');
+          args.push(walletState.address);
         }
-        if (walletState.characterSeed) {
-          args.push('--seed', String(walletState.characterSeed));
+        if (walletState.characterSeed && typeof walletState.characterSeed === 'number') {
+          args.push('--seed');
+          args.push(String(Math.floor(walletState.characterSeed)));
         }
 
-        console.log('[GameCanvas v23] Module.arguments:', args);
+        console.log('[GameCanvas v25] Module.arguments:', args);
 
         // Configure Love.js Module
         window.Module = {
@@ -140,32 +161,40 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           },
 
           onRuntimeInitialized: () => {
-            console.log('[GameCanvas v23] Love.js runtime initialized');
-            // v23: Wallet state passed via Module.arguments - Lua reads from arg table
-            // No FS or js.global needed!
-            (window as any).Module.calledRun = true;
+            console.log('[GameCanvas v25] Love.js runtime initialized');
+            // v25: Wallet state passed via Module.arguments - Lua reads from arg table
+            try {
+              (window as any).Module.calledRun = true;
+            } catch (e) {
+              console.error('[GameCanvas v25] Error in onRuntimeInitialized:', e);
+            }
           },
 
-          // Error handlers to catch WASM/Emscripten errors
+          // v25: Enhanced error handlers to catch WASM/Emscripten errors
           onAbort: (what: any) => {
             console.error('[LOVE.JS ABORT]', what);
+            showError('Game Engine Aborted', 'The game engine encountered a fatal error.', String(what));
           },
 
           quit: (status: number, toThrow: any) => {
             console.error('[LOVE.JS QUIT] status:', status, 'error:', toThrow);
+            if (status !== 0) {
+              showError('Game Quit Unexpectedly', `Exit status: ${status}`, String(toThrow));
+            }
           },
         };
 
         // Load game.js first (sets up data file loader)
         // Add cache-busting to ensure fresh files are loaded
         const cacheBuster = Date.now();
-        console.log('[v23] Loading game.js...');
+        console.log('[GameCanvas v25] Loading game.js...');
         const gameScript = document.createElement('script');
         gameScript.src = `/game/game.js?v=${cacheBuster}`;
 
         gameScript.onerror = (e) => {
           console.error('Failed to load game.js:', e);
-          setTimeout(onLoad, 1000);
+          showError('Failed to Load Game', 'Could not load game.js file.', 'Check network connection.');
+          onLoad();
         };
 
         // Load love.js after game.js
@@ -176,24 +205,30 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           loveScript.src = `/game/love.js?v=${cacheBuster}`;
 
           loveScript.onload = () => {
-            console.log('love.js loaded');
+            console.log('[GameCanvas v25] love.js loaded');
             if (typeof window.Love === 'function') {
-              console.log('Calling Love(Module)...');
+              console.log('[GameCanvas v25] Calling Love(Module)...');
               try {
                 window.Love(window.Module);
               } catch (e) {
-                console.error('Error calling Love():', e);
-                setTimeout(onLoad, 1000);
+                console.error('[GameCanvas v25] Error calling Love():', e);
+                // v25: Show user-visible error
+                const existingCanvas = document.getElementById('canvas');
+                if (existingCanvas) existingCanvas.remove();
+                showError('Game Engine Error', 'Failed to start game engine.', String(e));
+                onLoad();
               }
             } else {
-              console.error('Love is not a function:', typeof window.Love);
-              setTimeout(onLoad, 1000);
+              console.error('[GameCanvas v25] Love is not a function:', typeof window.Love);
+              showError('Game Engine Error', 'Love.js not loaded properly.', `Type: ${typeof window.Love}`);
+              onLoad();
             }
           };
 
           loveScript.onerror = (e) => {
-            console.error('Failed to load love.js:', e);
-            setTimeout(onLoad, 1000);
+            console.error('[GameCanvas v25] Failed to load love.js:', e);
+            showError('Failed to Load Game', 'Could not load love.js file.', 'Check network connection.');
+            onLoad();
           };
 
           document.body.appendChild(loveScript);
@@ -201,8 +236,9 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
 
         document.body.appendChild(gameScript);
       } catch (error) {
-        console.error('Failed to load Love.js:', error);
-        setTimeout(onLoad, 1000);
+        console.error('[GameCanvas v25] Failed to load Love.js:', error);
+        showError('Initialization Error', 'Failed to initialize game.', String(error));
+        onLoad();
       }
     };
 
