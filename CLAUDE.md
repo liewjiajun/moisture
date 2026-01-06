@@ -418,6 +418,7 @@ VITE_FIREBASE_APP_ID=
 - [x] **Menu button in sauna** (return to main menu)
 - [x] **Wallet connect fix** (real React ConnectButton on menu)
 - [x] **Difficulty reduction** (spawn rate halved, slower scaling)
+- [x] **Wallet→Sauna transition fix (v20)** - Deferred game loading until wallet/guest choice
 
 ### Known Issues
 - [ ] Sound may still not work in some browsers - Love.js SDL2 audio context issues
