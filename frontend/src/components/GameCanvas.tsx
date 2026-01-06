@@ -38,6 +38,25 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
       console.error('[UNHANDLED PROMISE REJECTION]', event.reason);
     });
 
+    // v25: Override window.alert to catch Love.js/Emscripten errors
+    // Love.js uses alert() internally for errors, which creates ugly popups on mobile
+    const originalAlert = window.alert;
+    window.alert = (message: string) => {
+      console.error('[ALERT INTERCEPTED]', message);
+      // Show as styled error instead of popup
+      if (containerRef.current) {
+        containerRef.current.innerHTML = `
+          <div style="color: #ff6b6b; padding: 20px; text-align: center; font-family: monospace;">
+            <h3 style="margin-bottom: 10px;">Game Error</h3>
+            <p style="margin-bottom: 8px; font-size: 12px; word-break: break-word;">${message}</p>
+            <p style="margin-top: 16px; font-size: 12px; opacity: 0.5;">Try refreshing the page</p>
+          </div>
+        `;
+      }
+      // Still call onLoad to prevent infinite loading state
+      onLoad();
+    };
+
     // v25: Helper to show error message in container
     const showError = (title: string, message: string, details?: string) => {
       if (containerRef.current) {
