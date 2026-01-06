@@ -40,7 +40,6 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
 
     // v25: Override window.alert to catch Love.js/Emscripten errors
     // Love.js uses alert() internally for errors, which creates ugly popups on mobile
-    const originalAlert = window.alert;
     window.alert = (message: string) => {
       console.error('[ALERT INTERCEPTED]', message);
       // Show as styled error instead of popup
@@ -124,7 +123,7 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
         console.log('[GameCanvas v25] Building Module.arguments with wallet state:', walletState);
 
         // v25: Safer argument building - validate all types
-        const args: string[] = ['.'];  // Use '.' instead of './' - simpler path for mobile
+        const args: string[] = ['./'];  // First arg is the game directory
         if (walletState.connected === true) {
           args.push('--wallet-connected');
         }
