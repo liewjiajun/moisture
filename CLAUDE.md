@@ -418,7 +418,7 @@ VITE_FIREBASE_APP_ID=
 - [x] **Menu button in sauna** (return to main menu)
 - [x] **Wallet connect fix** (real React ConnectButton on menu)
 - [x] **Difficulty reduction** (spawn rate halved, slower scaling)
-- [x] **Wallet→Sauna transition fix (v20)** - Deferred game loading until wallet/guest choice
+- [x] **Wallet→Sauna transition fix (v21)** - Fixed FS access + proper Lua return handling
 
 ### Known Issues
 - [ ] Sound may still not work in some browsers - Love.js SDL2 audio context issues
@@ -485,7 +485,29 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (v20 - Defer Game Load Until Wallet Decision)**:
+**Latest Session (v21 - Fixed Global FS Access + Lua Return Handling)**:
+Fixed wallet connection flow. v20 failed with `Module.FS not available` and Lua error on file read.
+
+**Root Causes**:
+1. Emscripten exposes `FS` as global variable `window.FS`, NOT `Module.FS`
+2. `love.filesystem.read()` returns `(contents, size)` tuple - pcall wrapping was returning `true` (success) instead of actual contents
+
+**Solution**:
+1. GameCanvas.tsx: Check `window.FS` first (global), then `Module.FS`, with 100ms retry loop
+2. bridge.lua: New `readInitFile()` properly checks `type(contents) == "string"`
+3. bridge.lua: Added `applyInitState()`, `pollInitFile()` for delayed init handling
+4. main.lua: Call `Bridge.pollInitFile()` in `love.update()`, handle `Bridge.needsStateTransition` flag
+
+**Files Modified**:
+- `frontend/src/components/GameCanvas.tsx` - Global FS access with retry
+- `game/src/bridge.lua` - Proper file read return handling + polling
+- `game/main.lua` - Delayed state transition support
+
+**Build UUID**: `349528f8-0e16-4897-99e2-9cd7a28eb8a9`
+
+---
+
+**Previous Session (v20 - Defer Game Load Until Wallet Decision)**:
 Fixed wallet connection flow by deferring game loading until user makes wallet/guest choice.
 
 **Root Cause**: Previous attempts (v18-v19) failed because:
