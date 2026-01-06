@@ -11,10 +11,59 @@ Bridge.chatMessages = {}
 Bridge.ticketId = nil
 Bridge.leaderboard = {}
 
--- v21: Init state tracking for delayed initialization
+-- v23: Init state tracking for delayed initialization
 Bridge.initApplied = false      -- True once we've applied init state
 Bridge.needsInitPoll = false    -- True if we need to poll for init file
 Bridge.needsStateTransition = false  -- True when main.lua should transition to LOUNGE
+
+-- v23: Parse wallet state from command-line arguments
+-- Module.arguments is passed to Lua's global `arg` table at Emscripten C level
+function Bridge.readFromCommandLineArgs()
+    -- Check if arg table exists (Love2D provides this from Emscripten arguments)
+    if type(arg) ~= "table" then
+        print("[Bridge v23] arg table not available (type=" .. type(arg) .. ")")
+        return nil
+    end
+
+    print("[Bridge v23] Parsing command-line arguments:")
+    for i, v in ipairs(arg) do
+        print("[Bridge v23]   arg[" .. i .. "] = " .. tostring(v))
+    end
+
+    local result = {
+        connected = false,
+        address = nil,
+        characterSeed = nil
+    }
+
+    -- Parse arguments (skip negative indices which are Love2D paths)
+    local i = 1
+    while arg[i] do
+        local v = arg[i]
+        if v == '--wallet-connected' then
+            result.connected = true
+            print("[Bridge v23] Found --wallet-connected flag")
+        elseif v == '--address' and arg[i+1] then
+            result.address = arg[i+1]
+            print("[Bridge v23] Found --address: " .. tostring(result.address))
+            i = i + 1
+        elseif v == '--seed' and arg[i+1] then
+            result.characterSeed = tonumber(arg[i+1])
+            print("[Bridge v23] Found --seed: " .. tostring(result.characterSeed))
+            i = i + 1
+        end
+        i = i + 1
+    end
+
+    -- Check if we got any useful data
+    if result.connected or result.address or result.characterSeed then
+        print("[Bridge v23] Successfully parsed wallet state from args!")
+        return result
+    end
+
+    print("[Bridge v23] No wallet data found in command-line args")
+    return nil
+end
 
 -- Round state management
 Bridge.GRACE_PERIOD = 5 * 60 * 1000  -- 5 minutes in ms
@@ -72,20 +121,20 @@ function Bridge.parseInitJSON(str)
     return data
 end
 
--- v21: Read init file with proper return value handling
+-- v23: Read init file (legacy fallback, probably won't work in Love.js)
 -- love.filesystem.read() returns (contents, size) or (nil, errorMsg)
 function Bridge.readInitFile()
     -- Try with leading slash first (absolute path in Emscripten FS)
     local contents, sizeOrError = love.filesystem.read("/bridge_init.json")
     if contents and type(contents) == "string" and contents ~= "" then
-        print("[Bridge v21] Read /bridge_init.json: " .. string.sub(contents, 1, 50))
+        print("[Bridge v23] Read /bridge_init.json: " .. string.sub(contents, 1, 50))
         return contents
     end
 
     -- Try without leading slash (relative to save directory)
     contents, sizeOrError = love.filesystem.read("bridge_init.json")
     if contents and type(contents) == "string" and contents ~= "" then
-        print("[Bridge v21] Read bridge_init.json: " .. string.sub(contents, 1, 50))
+        print("[Bridge v23] Read bridge_init.json: " .. string.sub(contents, 1, 50))
         return contents
     end
 
@@ -142,14 +191,14 @@ function Bridge.readFromJSGlobal()
     end
 end
 
--- v21: Apply parsed init state and set transition flags
+-- v23: Apply parsed init state and set transition flags (legacy fallback)
 function Bridge.applyInitState(content)
     local data = Bridge.parseInitJSON(content)
     if data then
-        print("[Bridge v21] Applying init state:")
-        print("[Bridge v21]   connected: " .. tostring(data.connected))
-        print("[Bridge v21]   address: " .. tostring(data.address))
-        print("[Bridge v21]   characterSeed: " .. tostring(data.characterSeed))
+        print("[Bridge v23] Applying init state:")
+        print("[Bridge v23]   connected: " .. tostring(data.connected))
+        print("[Bridge v23]   address: " .. tostring(data.address))
+        print("[Bridge v23]   characterSeed: " .. tostring(data.characterSeed))
 
         Bridge.walletConnected = data.connected == true
         Bridge.walletAddress = data.address
@@ -160,12 +209,12 @@ function Bridge.applyInitState(content)
         Bridge.needsStateTransition = true
         return true
     else
-        print("[Bridge v21] Failed to parse init file content")
+        print("[Bridge v23] Failed to parse init file content")
         return false
     end
 end
 
--- v22: Poll for init state (called every frame until found)
+-- v23: Poll for init state (legacy, not used in v23 - args available immediately)
 function Bridge.pollInitFile()
     if not Bridge.needsInitPoll then return end
     if Bridge.initApplied then
@@ -173,148 +222,71 @@ function Bridge.pollInitFile()
         return
     end
 
-    -- v22: Try JS global first (most reliable)
-    local jsState = Bridge.readFromJSGlobal()
-    if jsState then
-        Bridge.walletConnected = jsState.connected == true
-        Bridge.walletAddress = jsState.address
-        if jsState.characterSeed then
-            Bridge.characterSeed = jsState.characterSeed
-        end
-        Bridge.initApplied = true
-        Bridge.needsStateTransition = true
-        Bridge.needsInitPoll = false
-        print("[Bridge v22] Init via polling from JS global successful!")
-        return
-    end
+    -- v23: Command-line args should have been read at startup
+    -- This function is kept for backwards compatibility but shouldn't be needed
+    print("[Bridge v23] pollInitFile called but should not be needed in v23")
 
     -- Fallback: Try filesystem (probably won't work)
     local initContent = Bridge.readInitFile()
     if initContent then
         if Bridge.applyInitState(initContent) then
             Bridge.needsInitPoll = false
-            print("[Bridge v22] Init file found via polling")
+            print("[Bridge v23] Init file found via polling")
         end
     end
 end
 
 function Bridge.init()
-    print("[Bridge v22] init() starting...")
+    print("[Bridge v23] init() starting...")
 
     -- Detect browser environment (Love.js) - must be done after runtime init
     local detectedOS = love.system.getOS()
-    print("[Bridge v22] OS detected: " .. tostring(detectedOS))
+    print("[Bridge v23] OS detected: " .. tostring(detectedOS))
 
-    -- Check for js global first (more reliable in Love.js)
-    Bridge.isBrowser = (type(js) == "table" and js.global ~= nil)
-    if not Bridge.isBrowser then
-        -- Fallback to OS check
-        Bridge.isBrowser = (detectedOS == "Web")
-    end
-    print("[Bridge v22] isBrowser = " .. tostring(Bridge.isBrowser))
+    -- Check for browser environment via OS (js global is NOT available in this Love.js build)
+    Bridge.isBrowser = (detectedOS == "Web")
+    print("[Bridge v23] isBrowser = " .. tostring(Bridge.isBrowser))
 
-    -- ===== V22: Try reading from JS global first (most reliable) =====
-    -- This bypasses the broken Emscripten FS entirely
-    print("[Bridge v22] Attempting to read from js.global.INITIAL_WALLET_STATE...")
+    -- ===== V23: Read from command-line arguments FIRST =====
+    -- Module.arguments is passed before game loads, no JS FFI needed!
+    print("[Bridge v23] Attempting to read from command-line args...")
 
-    local jsState = Bridge.readFromJSGlobal()
-    if jsState then
-        Bridge.walletConnected = jsState.connected == true
-        Bridge.walletAddress = jsState.address
-        if jsState.characterSeed then
-            Bridge.characterSeed = jsState.characterSeed
+    local argState = Bridge.readFromCommandLineArgs()
+    if argState then
+        Bridge.walletConnected = argState.connected == true
+        Bridge.walletAddress = argState.address
+        if argState.characterSeed then
+            Bridge.characterSeed = argState.characterSeed
         end
         Bridge.initApplied = true
-        print("[Bridge v22] Init from JS global successful!")
+        Bridge.needsStateTransition = Bridge.walletConnected  -- Transition to LOUNGE if wallet connected
+        print("[Bridge v23] Init from command-line args successful!")
+        print("[Bridge v23]   walletConnected = " .. tostring(Bridge.walletConnected))
+        print("[Bridge v23]   walletAddress = " .. tostring(Bridge.walletAddress))
+        print("[Bridge v23]   characterSeed = " .. tostring(Bridge.characterSeed))
+        print("[Bridge v23]   needsStateTransition = " .. tostring(Bridge.needsStateTransition))
     else
-        -- Fallback: Try filesystem (probably won't work, but try anyway)
-        print("[Bridge v22] JS global failed, trying filesystem fallback...")
-        local initContent = Bridge.readInitFile()
-        if initContent then
-            Bridge.applyInitState(initContent)
-        else
-            print("[Bridge v22] All init methods failed, will poll in update()")
-            Bridge.needsInitPoll = true
-        end
+        -- No args = guest mode (user clicked "Play as Guest" or no wallet state passed)
+        print("[Bridge v23] No wallet args found, defaulting to guest mode")
+        Bridge.walletConnected = false
+        Bridge.initApplied = true
+        Bridge.needsStateTransition = false
     end
 
-    -- Debug: Log filesystem paths for bridge setup
+    -- No polling needed - args are available immediately at startup
+    Bridge.needsInitPoll = false
+
+    -- Debug: Log filesystem paths for reference
     if Bridge.isBrowser then
         local saveDir = love.filesystem.getSaveDirectory()
         local sourceDir = love.filesystem.getSource()
         local identity = love.filesystem.getIdentity()
-        print("[Bridge v22] Save directory: " .. tostring(saveDir))
-        print("[Bridge v22] Source directory: " .. tostring(sourceDir))
-        print("[Bridge v22] Identity: " .. tostring(identity))
+        print("[Bridge v23] Save directory: " .. tostring(saveDir))
+        print("[Bridge v23] Source directory: " .. tostring(sourceDir))
+        print("[Bridge v23] Identity: " .. tostring(identity))
     end
 
-    -- Set up global functions for JS to call (legacy, may not work in all Love.js builds)
-    if Bridge.isBrowser and type(js) == "table" and js.global then
-        -- Expose Lua functions to JavaScript
-        js.global.luaBridge = {
-            setWalletState = function(connected, address)
-                Bridge.walletConnected = connected
-                Bridge.walletAddress = address
-            end,
-            setGameData = function(seed, roundId, ticketId)
-                Bridge.characterSeed = tonumber(seed)
-                Bridge.roundId = tonumber(roundId)
-                Bridge.ticketId = ticketId
-            end,
-            setPoolData = function(balance, endTimestamp)
-                Bridge.poolBalance = tonumber(balance) or 0
-                Bridge.endTimestamp = tonumber(endTimestamp) or 0
-            end,
-            addChatMessage = function(sender, message, timestamp)
-                table.insert(Bridge.chatMessages, {
-                    sender = sender,
-                    message = message,
-                    timestamp = timestamp or os.time()
-                })
-                -- Keep only last 50 messages
-                while #Bridge.chatMessages > 50 do
-                    table.remove(Bridge.chatMessages, 1)
-                end
-            end,
-            setLeaderboard = function(jsonData)
-                -- Parse JSON leaderboard data
-                local success, data = pcall(function()
-                    return Bridge.parseJSON(jsonData)
-                end)
-                if success and data then
-                    Bridge.leaderboard = data
-                end
-            end,
-            setPlayerStats = function(gamesPlayed, bestTime, totalSpent)
-                Bridge.playerStats.gamesPlayed = tonumber(gamesPlayed) or 0
-                Bridge.playerStats.bestTime = tonumber(bestTime) or 0
-                Bridge.playerStats.totalSpent = tonumber(totalSpent) or 0
-            end,
-            setPastRounds = function(jsonData)
-                -- Parse JSON past rounds data
-                local success, data = pcall(function()
-                    return Bridge.parsePastRoundsJSON(jsonData)
-                end)
-                if success and data then
-                    Bridge.pastRounds = data
-                end
-            end,
-            setOnlinePlayers = function(jsonData)
-                -- Parse JSON online players data
-                local success, data = pcall(function()
-                    return Bridge.parseOnlinePlayersJSON(jsonData)
-                end)
-                if success and data then
-                    Bridge.onlinePlayers = data
-                end
-            end,
-            startGame = function()
-                love.event.push("startgame")
-            end
-        }
-    end
-
-    print("[Bridge v22] init() complete - walletConnected=" .. tostring(Bridge.walletConnected) .. ", initApplied=" .. tostring(Bridge.initApplied))
+    print("[Bridge v23] init() complete - walletConnected=" .. tostring(Bridge.walletConnected) .. ", initApplied=" .. tostring(Bridge.initApplied))
 end
 
 -- Poll for pending messages from JavaScript (called every frame)

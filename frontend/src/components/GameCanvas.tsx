@@ -75,10 +75,34 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           containerRef.current.appendChild(canvas);
         }
 
+        // v23: Build Module.arguments with wallet state
+        // This is passed to Lua's `arg` table at Emscripten C level (no JS FFI needed!)
+        const walletState = window.INITIAL_WALLET_STATE || {
+          connected: false,
+          address: null,
+          characterSeed: Date.now() % 999999999,
+        };
+
+        console.log('[GameCanvas v23] Building Module.arguments with wallet state:', walletState);
+
+        // Encode wallet state as command-line arguments for Lua
+        const args: string[] = ['./'];  // First arg is always the game directory
+        if (walletState.connected) {
+          args.push('--wallet-connected');
+        }
+        if (walletState.address) {
+          args.push('--address', walletState.address);
+        }
+        if (walletState.characterSeed) {
+          args.push('--seed', String(walletState.characterSeed));
+        }
+
+        console.log('[GameCanvas v23] Module.arguments:', args);
+
         // Configure Love.js Module
         window.Module = {
           canvas,
-          arguments: ['./'],
+          arguments: args,  // v23: Pass wallet state via args!
           INITIAL_MEMORY: 67108864,
 
           // Tell Emscripten where to find game files (game.data, love.wasm)
@@ -116,10 +140,9 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           },
 
           onRuntimeInitialized: () => {
-            console.log('[GameCanvas v22] Love.js runtime initialized');
-            // v22: Don't try to write to Emscripten FS - it's not exported by Love.js
-            // Lua will read window.INITIAL_WALLET_STATE directly via js.global
-            console.log('[GameCanvas v22] INITIAL_WALLET_STATE:', window.INITIAL_WALLET_STATE);
+            console.log('[GameCanvas v23] Love.js runtime initialized');
+            // v23: Wallet state passed via Module.arguments - Lua reads from arg table
+            // No FS or js.global needed!
             (window as any).Module.calledRun = true;
           },
 
@@ -136,7 +159,7 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
         // Load game.js first (sets up data file loader)
         // Add cache-busting to ensure fresh files are loaded
         const cacheBuster = Date.now();
-        console.log('[v19] Loading game.js...');
+        console.log('[v23] Loading game.js...');
         const gameScript = document.createElement('script');
         gameScript.src = `/game/game.js?v=${cacheBuster}`;
 

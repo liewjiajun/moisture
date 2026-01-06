@@ -145,14 +145,14 @@ function love.load()
     if not bridgeSuccess then
         print("[MOISTURE] Bridge FAILED:", bridgeErr)
     else
-        -- v22: Check if init was applied immediately or needs polling
+        -- v23: Check if init was applied immediately or needs polling
         if Bridge.initApplied then
             -- Init state was available immediately - proceed to LOUNGE
             if Bridge.walletConnected then
-                print("[MOISTURE v22] Wallet connected on startup - going to LOUNGE")
+                print("[MOISTURE v23] Wallet connected on startup - going to LOUNGE")
                 isGuest = false
             else
-                print("[MOISTURE v22] Guest mode on startup - going to LOUNGE")
+                print("[MOISTURE v23] Guest mode on startup - going to LOUNGE")
                 isGuest = true
             end
 
@@ -160,12 +160,12 @@ function love.load()
 
             -- Generate player character from seed
             if Bridge.characterSeed then
-                print("[MOISTURE v22] Creating character with seed: " .. tostring(Bridge.characterSeed))
+                print("[MOISTURE v23] Creating character with seed: " .. tostring(Bridge.characterSeed))
                 playerCharacter = Character.new(Bridge.characterSeed)
             else
                 -- Fallback seed if none provided
                 local fallbackSeed = os.time() + love.math.random(1, 999999)
-                print("[MOISTURE v22] No seed provided, using fallback: " .. tostring(fallbackSeed))
+                print("[MOISTURE v23] No seed provided, using fallback: " .. tostring(fallbackSeed))
                 Bridge.characterSeed = fallbackSeed
                 playerCharacter = Character.new(fallbackSeed)
             end
@@ -174,7 +174,7 @@ function love.load()
             Bridge.needsStateTransition = false
         else
             -- Init file not ready yet - start in MENU and wait for polling
-            print("[MOISTURE v22] Init file not ready, starting in MENU (will poll in update)")
+            print("[MOISTURE v23] Init file not ready, starting in MENU (will poll in update)")
             state = STATE.MENU
 
             -- Create a fallback character for now
@@ -258,19 +258,19 @@ function love.update(dt)
     -- Poll for messages from JavaScript (wallet state, chat, etc.)
     Bridge.pollMessages()
 
-    -- v22: Poll for init file if not yet applied
+    -- v23: Poll for init file (legacy, should not be needed with Module.arguments)
     Bridge.pollInitFile()
 
-    -- v22: Handle delayed state transition from Bridge
+    -- v23: Handle delayed state transition from Bridge (if needed)
     if Bridge.needsStateTransition then
         Bridge.needsStateTransition = false
-        print("[MOISTURE v22] Processing delayed state transition")
+        print("[MOISTURE v23] Processing delayed state transition")
 
         if Bridge.walletConnected then
-            print("[MOISTURE v22] Wallet connected - going to LOUNGE")
+            print("[MOISTURE v23] Wallet connected - going to LOUNGE")
             isGuest = false
         else
-            print("[MOISTURE v22] Guest mode - going to LOUNGE")
+            print("[MOISTURE v23] Guest mode - going to LOUNGE")
             isGuest = true
         end
 
@@ -278,7 +278,7 @@ function love.update(dt)
 
         -- Regenerate player character with the real wallet seed
         if Bridge.characterSeed then
-            print("[MOISTURE v22] Creating character with seed: " .. tostring(Bridge.characterSeed))
+            print("[MOISTURE v23] Creating character with seed: " .. tostring(Bridge.characterSeed))
             playerCharacter = Character.new(Bridge.characterSeed)
         end
 
