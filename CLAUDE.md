@@ -418,7 +418,7 @@ VITE_FIREBASE_APP_ID=
 - [x] **Menu button in sauna** (return to main menu)
 - [x] **Wallet connect fix** (real React ConnectButton on menu)
 - [x] **Difficulty reduction** (spawn rate halved, slower scaling)
-- [x] **Wallet→Sauna transition fix (v21)** - Fixed FS access + proper Lua return handling
+- [x] **Wallet→Sauna transition fix (v22)** - Read js.global directly, bypass broken FS
 
 ### Known Issues
 - [ ] Sound may still not work in some browsers - Love.js SDL2 audio context issues
@@ -485,25 +485,41 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (v21 - Fixed Global FS Access + Lua Return Handling)**:
-Fixed wallet connection flow. v20 failed with `Module.FS not available` and Lua error on file read.
+**Latest Session (v22 - Skip FS, Use js.global Directly)**:
+v21 still failed because Love.js was compiled WITHOUT `-s EXPORTED_RUNTIME_METHODS=['FS']`.
+The Emscripten FS is NEVER available to JavaScript, making the filesystem bridge impossible.
 
-**Root Causes**:
-1. Emscripten exposes `FS` as global variable `window.FS`, NOT `Module.FS`
-2. `love.filesystem.read()` returns `(contents, size)` tuple - pcall wrapping was returning `true` (success) instead of actual contents
+**Root Cause**:
+- `window.FS` and `Module.FS` are both undefined - Love.js doesn't export FS
+- The FS retry loop ran forever: `[GameCanvas v21] FS not ready, retrying in 100ms...`
+- Lua crashed with `attempt to index a nil value` in readInitFile()
 
-**Solution**:
-1. GameCanvas.tsx: Check `window.FS` first (global), then `Module.FS`, with 100ms retry loop
-2. bridge.lua: New `readInitFile()` properly checks `type(contents) == "string"`
-3. bridge.lua: Added `applyInitState()`, `pollInitFile()` for delayed init handling
-4. main.lua: Call `Bridge.pollInitFile()` in `love.update()`, handle `Bridge.needsStateTransition` flag
+**Solution**: Skip the filesystem entirely - read `window.INITIAL_WALLET_STATE` via `js.global`:
+1. GameCanvas.tsx: Remove all FS write code - just log that Lua should read js.global
+2. bridge.lua: Add `readFromJSGlobal()` to read `js.global.INITIAL_WALLET_STATE` directly
+3. bridge.lua: Update `init()` and `pollInitFile()` to try js.global first
+4. main.lua: Update version markers to v22
+
+**Key Insight**: Lua CAN access JavaScript globals via `js.global` (used for browser detection).
+React sets `window.INITIAL_WALLET_STATE` before game loads - Lua can read it directly!
 
 **Files Modified**:
-- `frontend/src/components/GameCanvas.tsx` - Global FS access with retry
-- `game/src/bridge.lua` - Proper file read return handling + polling
-- `game/main.lua` - Delayed state transition support
+- `frontend/src/components/GameCanvas.tsx` - Simplified onRuntimeInitialized
+- `game/src/bridge.lua` - Added readFromJSGlobal(), updated init/pollInitFile
+- `game/main.lua` - Version markers to v22
 
-**Build UUID**: `349528f8-0e16-4897-99e2-9cd7a28eb8a9`
+**Build UUID**: `824271f3-46ce-4bea-a9a3-5ade3d98e5a5`
+
+**Alternative Engines Researched** (if v22 fails):
+- Phaser 3: Best for React integration, requires JS rewrite (2-4 weeks)
+- Defold: Lua-based with web export, requires learning new engine
+- PixiJS: Fast rendering, but not a game framework
+
+---
+
+**Previous Session (v21 - Failed: FS Never Available)**:
+v21 tried to access global `window.FS` and `Module.FS`, but both are undefined because Love.js
+was compiled without the FS export flag. The retry loop ran forever and Lua crashed.
 
 ---
 
