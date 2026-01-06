@@ -138,23 +138,19 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           characterSeed: Date.now() % 999999999,
         };
 
-        console.log('[GameCanvas v25] Building Module.arguments with wallet state:', walletState);
+        console.log('[GameCanvas v26] Wallet state:', walletState);
 
-        // v25: Safer argument building - validate all types
-        const args: string[] = ['./'];  // First arg is the game directory
-        if (walletState.connected === true) {
-          args.push('--wallet-connected');
-        }
-        if (walletState.address && typeof walletState.address === 'string' && walletState.address.length > 0) {
-          args.push('--address');
-          args.push(walletState.address);
-        }
+        // v26: Don't pass wallet info via arguments - it breaks on iOS
+        // Just pass minimal args, Lua will use Bridge.characterSeed default
+        const args: string[] = ['./'];
+
+        // Only pass seed (short number), not address (long string that breaks iOS)
         if (walletState.characterSeed && typeof walletState.characterSeed === 'number') {
           args.push('--seed');
           args.push(String(Math.floor(walletState.characterSeed)));
         }
 
-        console.log('[GameCanvas v25] Module.arguments:', args);
+        console.log('[GameCanvas v26] Module.arguments:', args);
 
         // Configure Love.js Module
         window.Module = {
