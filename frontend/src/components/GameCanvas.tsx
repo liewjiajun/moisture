@@ -116,31 +116,50 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           },
 
           onRuntimeInitialized: () => {
-            console.log('[GameCanvas v20] Love.js runtime initialized');
+            console.log('[GameCanvas v21] Love.js runtime initialized');
 
-            // Write initial wallet state to virtual filesystem for Lua to read
-            const initialState = window.INITIAL_WALLET_STATE || {
-              connected: false,
-              address: null,
-              characterSeed: Date.now() % 999999999,
+            // v21: Try multiple ways to access FS with retry logic
+            const writeInitState = () => {
+              // Try multiple ways to access Emscripten FS
+              let fs: any = null;
+
+              // Check global FS (Emscripten default export)
+              if (typeof (window as any).FS !== 'undefined') {
+                fs = (window as any).FS;
+                console.log('[GameCanvas v21] Found global window.FS');
+              }
+              // Check Module.FS
+              else if ((window as any).Module?.FS) {
+                fs = (window as any).Module.FS;
+                console.log('[GameCanvas v21] Found Module.FS');
+              }
+
+              if (!fs) {
+                console.log('[GameCanvas v21] FS not ready, retrying in 100ms...');
+                setTimeout(writeInitState, 100);
+                return;
+              }
+
+              const initialState = window.INITIAL_WALLET_STATE || {
+                connected: false,
+                address: null,
+                characterSeed: Date.now() % 999999999,
+              };
+
+              console.log('[GameCanvas v21] Writing initial state to FS:', initialState);
+
+              try {
+                const stateJson = JSON.stringify(initialState);
+                fs.writeFile('/bridge_init.json', stateJson);
+                console.log('[GameCanvas v21] Successfully wrote /bridge_init.json');
+              } catch (e) {
+                console.error('[GameCanvas v21] Write failed, retrying:', e);
+                setTimeout(writeInitState, 100);
+              }
             };
 
-            console.log('[GameCanvas v20] Writing initial state to FS:', initialState);
-
-            try {
-              if (window.Module && window.Module.FS) {
-                // Write to the save directory that Lua can read
-                // Love.js uses /home/web_user/.local/share/<identity>/ for save directory
-                // But we can also write to root which Lua can access
-                const stateJson = JSON.stringify(initialState);
-                window.Module.FS.writeFile('/bridge_init.json', stateJson);
-                console.log('[GameCanvas v20] Initial state written to /bridge_init.json');
-              } else {
-                console.error('[GameCanvas v20] Module.FS not available');
-              }
-            } catch (e) {
-              console.error('[GameCanvas v20] Failed to write initial state:', e);
-            }
+            // Start attempting to write
+            writeInitState();
 
             // Mark that Love.js is ready
             (window as any).Module.calledRun = true;

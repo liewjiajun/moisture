@@ -11,6 +11,11 @@ Bridge.chatMessages = {}
 Bridge.ticketId = nil
 Bridge.leaderboard = {}
 
+-- v21: Init state tracking for delayed initialization
+Bridge.initApplied = false      -- True once we've applied init state
+Bridge.needsInitPoll = false    -- True if we need to poll for init file
+Bridge.needsStateTransition = false  -- True when main.lua should transition to LOUNGE
+
 -- Round state management
 Bridge.GRACE_PERIOD = 5 * 60 * 1000  -- 5 minutes in ms
 
@@ -67,12 +72,72 @@ function Bridge.parseInitJSON(str)
     return data
 end
 
+-- v21: Read init file with proper return value handling
+-- love.filesystem.read() returns (contents, size) or (nil, errorMsg)
+function Bridge.readInitFile()
+    -- Try with leading slash first (absolute path in Emscripten FS)
+    local contents, sizeOrError = love.filesystem.read("/bridge_init.json")
+    if contents and type(contents) == "string" and contents ~= "" then
+        print("[Bridge v21] Read /bridge_init.json: " .. string.sub(contents, 1, 50))
+        return contents
+    end
+
+    -- Try without leading slash (relative to save directory)
+    contents, sizeOrError = love.filesystem.read("bridge_init.json")
+    if contents and type(contents) == "string" and contents ~= "" then
+        print("[Bridge v21] Read bridge_init.json: " .. string.sub(contents, 1, 50))
+        return contents
+    end
+
+    return nil
+end
+
+-- v21: Apply parsed init state and set transition flags
+function Bridge.applyInitState(content)
+    local data = Bridge.parseInitJSON(content)
+    if data then
+        print("[Bridge v21] Applying init state:")
+        print("[Bridge v21]   connected: " .. tostring(data.connected))
+        print("[Bridge v21]   address: " .. tostring(data.address))
+        print("[Bridge v21]   characterSeed: " .. tostring(data.characterSeed))
+
+        Bridge.walletConnected = data.connected == true
+        Bridge.walletAddress = data.address
+        if data.characterSeed then
+            Bridge.characterSeed = data.characterSeed
+        end
+        Bridge.initApplied = true
+        Bridge.needsStateTransition = true
+        return true
+    else
+        print("[Bridge v21] Failed to parse init file content")
+        return false
+    end
+end
+
+-- v21: Poll for init file (called every frame until found)
+function Bridge.pollInitFile()
+    if not Bridge.needsInitPoll then return end
+    if Bridge.initApplied then
+        Bridge.needsInitPoll = false
+        return
+    end
+
+    local initContent = Bridge.readInitFile()
+    if initContent then
+        if Bridge.applyInitState(initContent) then
+            Bridge.needsInitPoll = false
+            print("[Bridge v21] Init file found and applied via polling")
+        end
+    end
+end
+
 function Bridge.init()
-    print("[Bridge v20] init() starting...")
+    print("[Bridge v21] init() starting...")
 
     -- Detect browser environment (Love.js) - must be done after runtime init
     local detectedOS = love.system.getOS()
-    print("[Bridge v20] OS detected: " .. tostring(detectedOS))
+    print("[Bridge v21] OS detected: " .. tostring(detectedOS))
 
     -- Check for js global first (more reliable in Love.js)
     Bridge.isBrowser = (type(js) == "table" and js.global ~= nil)
@@ -80,52 +145,19 @@ function Bridge.init()
         -- Fallback to OS check
         Bridge.isBrowser = (detectedOS == "Web")
     end
-    print("[Bridge v20] isBrowser = " .. tostring(Bridge.isBrowser))
+    print("[Bridge v21] isBrowser = " .. tostring(Bridge.isBrowser))
 
-    -- ===== V20: Read initial state from bridge_init.json =====
-    -- This file is written by React before Lua starts
-    print("[Bridge v20] Attempting to read /bridge_init.json...")
-    local initContent = nil
+    -- ===== V21: Read initial state from bridge_init.json =====
+    -- This file is written by React via Emscripten FS
+    -- It may not exist yet if FS write is delayed
+    print("[Bridge v21] Attempting to read init file...")
 
-    -- Try reading from root (where React writes it via Module.FS)
-    local success, result = pcall(function()
-        -- Love.js maps Module.FS root to love.filesystem paths
-        -- Try multiple possible locations
-        local content = love.filesystem.read("/bridge_init.json")
-        if content then return content end
-
-        -- Also try without leading slash
-        content = love.filesystem.read("bridge_init.json")
-        if content then return content end
-
-        return nil
-    end)
-
-    if success and result and result ~= "" then
-        initContent = result
-        print("[Bridge v20] Read bridge_init.json: " .. string.sub(tostring(initContent), 1, 100))
-    else
-        print("[Bridge v20] Could not read bridge_init.json (file may not exist yet)")
-    end
-
-    -- Parse the initial state if we got it
+    local initContent = Bridge.readInitFile()
     if initContent then
-        local initData = Bridge.parseInitJSON(initContent)
-        if initData then
-            print("[Bridge v20] Parsed initial state:")
-            print("[Bridge v20]   connected: " .. tostring(initData.connected))
-            print("[Bridge v20]   address: " .. tostring(initData.address))
-            print("[Bridge v20]   characterSeed: " .. tostring(initData.characterSeed))
-
-            -- Apply the initial state
-            Bridge.walletConnected = initData.connected == true
-            Bridge.walletAddress = initData.address
-            if initData.characterSeed then
-                Bridge.characterSeed = initData.characterSeed
-            end
-        else
-            print("[Bridge v20] Failed to parse bridge_init.json content")
-        end
+        Bridge.applyInitState(initContent)
+    else
+        print("[Bridge v21] Init file not found yet, will poll in update()")
+        Bridge.needsInitPoll = true
     end
 
     -- Debug: Log filesystem paths for bridge setup
@@ -133,9 +165,9 @@ function Bridge.init()
         local saveDir = love.filesystem.getSaveDirectory()
         local sourceDir = love.filesystem.getSource()
         local identity = love.filesystem.getIdentity()
-        print("[Bridge v20] Save directory: " .. tostring(saveDir))
-        print("[Bridge v20] Source directory: " .. tostring(sourceDir))
-        print("[Bridge v20] Identity: " .. tostring(identity))
+        print("[Bridge v21] Save directory: " .. tostring(saveDir))
+        print("[Bridge v21] Source directory: " .. tostring(sourceDir))
+        print("[Bridge v21] Identity: " .. tostring(identity))
     end
 
     -- Set up global functions for JS to call (legacy, may not work in all Love.js builds)
@@ -204,7 +236,7 @@ function Bridge.init()
         }
     end
 
-    print("[Bridge v20] init() complete - walletConnected=" .. tostring(Bridge.walletConnected))
+    print("[Bridge v21] init() complete - walletConnected=" .. tostring(Bridge.walletConnected) .. ", initApplied=" .. tostring(Bridge.initApplied))
 end
 
 -- Poll for pending messages from JavaScript (called every frame)

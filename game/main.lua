@@ -145,28 +145,40 @@ function love.load()
     if not bridgeSuccess then
         print("[MOISTURE] Bridge FAILED:", bridgeErr)
     else
-        -- V20: User already made their choice in React landing screen
-        -- React writes initial state to bridge_init.json which Bridge.init() reads
-        -- Both wallet and guest users go directly to LOUNGE (no Lua MENU needed)
-        if Bridge.walletConnected then
-            print("[MOISTURE v20] Wallet connected on startup - going to LOUNGE")
-            isGuest = false
-        else
-            print("[MOISTURE v20] Guest mode on startup - going to LOUNGE")
-            isGuest = true
-        end
+        -- v21: Check if init was applied immediately or needs polling
+        if Bridge.initApplied then
+            -- Init state was available immediately - proceed to LOUNGE
+            if Bridge.walletConnected then
+                print("[MOISTURE v21] Wallet connected on startup - going to LOUNGE")
+                isGuest = false
+            else
+                print("[MOISTURE v21] Guest mode on startup - going to LOUNGE")
+                isGuest = true
+            end
 
-        -- Go directly to LOUNGE (React already showed the landing screen)
-        state = STATE.LOUNGE
+            state = STATE.LOUNGE
 
-        -- Generate player character from seed
-        if Bridge.characterSeed then
-            print("[MOISTURE v20] Creating character with seed: " .. tostring(Bridge.characterSeed))
-            playerCharacter = Character.new(Bridge.characterSeed)
+            -- Generate player character from seed
+            if Bridge.characterSeed then
+                print("[MOISTURE v21] Creating character with seed: " .. tostring(Bridge.characterSeed))
+                playerCharacter = Character.new(Bridge.characterSeed)
+            else
+                -- Fallback seed if none provided
+                local fallbackSeed = os.time() + love.math.random(1, 999999)
+                print("[MOISTURE v21] No seed provided, using fallback: " .. tostring(fallbackSeed))
+                Bridge.characterSeed = fallbackSeed
+                playerCharacter = Character.new(fallbackSeed)
+            end
+
+            -- Clear the transition flag since we handled it here
+            Bridge.needsStateTransition = false
         else
-            -- Fallback seed if none provided
+            -- Init file not ready yet - start in MENU and wait for polling
+            print("[MOISTURE v21] Init file not ready, starting in MENU (will poll in update)")
+            state = STATE.MENU
+
+            -- Create a fallback character for now
             local fallbackSeed = os.time() + love.math.random(1, 999999)
-            print("[MOISTURE v20] No seed provided, using fallback: " .. tostring(fallbackSeed))
             Bridge.characterSeed = fallbackSeed
             playerCharacter = Character.new(fallbackSeed)
         end
@@ -245,6 +257,33 @@ function love.update(dt)
 
     -- Poll for messages from JavaScript (wallet state, chat, etc.)
     Bridge.pollMessages()
+
+    -- v21: Poll for init file if not yet applied
+    Bridge.pollInitFile()
+
+    -- v21: Handle delayed state transition from Bridge
+    if Bridge.needsStateTransition then
+        Bridge.needsStateTransition = false
+        print("[MOISTURE v21] Processing delayed state transition")
+
+        if Bridge.walletConnected then
+            print("[MOISTURE v21] Wallet connected - going to LOUNGE")
+            isGuest = false
+        else
+            print("[MOISTURE v21] Guest mode - going to LOUNGE")
+            isGuest = true
+        end
+
+        state = STATE.LOUNGE
+
+        -- Regenerate player character with the real wallet seed
+        if Bridge.characterSeed then
+            print("[MOISTURE v21] Creating character with seed: " .. tostring(Bridge.characterSeed))
+            playerCharacter = Character.new(Bridge.characterSeed)
+        end
+
+        Bridge.setGameState(state)
+    end
 
     -- Nil safety checks
     if not pixelCanvas then
