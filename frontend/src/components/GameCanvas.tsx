@@ -116,52 +116,10 @@ function GameCanvas({ onLoad }: GameCanvasProps) {
           },
 
           onRuntimeInitialized: () => {
-            console.log('[GameCanvas v21] Love.js runtime initialized');
-
-            // v21: Try multiple ways to access FS with retry logic
-            const writeInitState = () => {
-              // Try multiple ways to access Emscripten FS
-              let fs: any = null;
-
-              // Check global FS (Emscripten default export)
-              if (typeof (window as any).FS !== 'undefined') {
-                fs = (window as any).FS;
-                console.log('[GameCanvas v21] Found global window.FS');
-              }
-              // Check Module.FS
-              else if ((window as any).Module?.FS) {
-                fs = (window as any).Module.FS;
-                console.log('[GameCanvas v21] Found Module.FS');
-              }
-
-              if (!fs) {
-                console.log('[GameCanvas v21] FS not ready, retrying in 100ms...');
-                setTimeout(writeInitState, 100);
-                return;
-              }
-
-              const initialState = window.INITIAL_WALLET_STATE || {
-                connected: false,
-                address: null,
-                characterSeed: Date.now() % 999999999,
-              };
-
-              console.log('[GameCanvas v21] Writing initial state to FS:', initialState);
-
-              try {
-                const stateJson = JSON.stringify(initialState);
-                fs.writeFile('/bridge_init.json', stateJson);
-                console.log('[GameCanvas v21] Successfully wrote /bridge_init.json');
-              } catch (e) {
-                console.error('[GameCanvas v21] Write failed, retrying:', e);
-                setTimeout(writeInitState, 100);
-              }
-            };
-
-            // Start attempting to write
-            writeInitState();
-
-            // Mark that Love.js is ready
+            console.log('[GameCanvas v22] Love.js runtime initialized');
+            // v22: Don't try to write to Emscripten FS - it's not exported by Love.js
+            // Lua will read window.INITIAL_WALLET_STATE directly via js.global
+            console.log('[GameCanvas v22] INITIAL_WALLET_STATE:', window.INITIAL_WALLET_STATE);
             (window as any).Module.calledRun = true;
           },
 

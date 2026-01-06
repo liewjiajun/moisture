@@ -92,6 +92,56 @@ function Bridge.readInitFile()
     return nil
 end
 
+-- v22: Read initial state directly from JavaScript global
+-- This bypasses the broken Emscripten FS bridge entirely
+function Bridge.readFromJSGlobal()
+    if not Bridge.isBrowser then
+        print("[Bridge v22] Not in browser, skipping JS global read")
+        return nil
+    end
+
+    if type(js) ~= "table" then
+        print("[Bridge v22] js global not available (type=" .. type(js) .. ")")
+        return nil
+    end
+
+    if not js.global then
+        print("[Bridge v22] js.global not available")
+        return nil
+    end
+
+    -- Try to access window.INITIAL_WALLET_STATE
+    local success, result = pcall(function()
+        local state = js.global.INITIAL_WALLET_STATE
+        if state then
+            print("[Bridge v22] Found INITIAL_WALLET_STATE object")
+            -- Access properties safely - they come as JS values
+            local connected = state.connected
+            local address = state.address
+            local characterSeed = state.characterSeed
+
+            return {
+                connected = connected,
+                address = address,
+                characterSeed = characterSeed
+            }
+        end
+        print("[Bridge v22] INITIAL_WALLET_STATE is nil or undefined")
+        return nil
+    end)
+
+    if success and result then
+        print("[Bridge v22] Successfully read from js.global:")
+        print("[Bridge v22]   connected: " .. tostring(result.connected))
+        print("[Bridge v22]   address: " .. tostring(result.address))
+        print("[Bridge v22]   characterSeed: " .. tostring(result.characterSeed))
+        return result
+    else
+        print("[Bridge v22] Failed to read INITIAL_WALLET_STATE: " .. tostring(result))
+        return nil
+    end
+end
+
 -- v21: Apply parsed init state and set transition flags
 function Bridge.applyInitState(content)
     local data = Bridge.parseInitJSON(content)
@@ -115,7 +165,7 @@ function Bridge.applyInitState(content)
     end
 end
 
--- v21: Poll for init file (called every frame until found)
+-- v22: Poll for init state (called every frame until found)
 function Bridge.pollInitFile()
     if not Bridge.needsInitPoll then return end
     if Bridge.initApplied then
@@ -123,21 +173,37 @@ function Bridge.pollInitFile()
         return
     end
 
+    -- v22: Try JS global first (most reliable)
+    local jsState = Bridge.readFromJSGlobal()
+    if jsState then
+        Bridge.walletConnected = jsState.connected == true
+        Bridge.walletAddress = jsState.address
+        if jsState.characterSeed then
+            Bridge.characterSeed = jsState.characterSeed
+        end
+        Bridge.initApplied = true
+        Bridge.needsStateTransition = true
+        Bridge.needsInitPoll = false
+        print("[Bridge v22] Init via polling from JS global successful!")
+        return
+    end
+
+    -- Fallback: Try filesystem (probably won't work)
     local initContent = Bridge.readInitFile()
     if initContent then
         if Bridge.applyInitState(initContent) then
             Bridge.needsInitPoll = false
-            print("[Bridge v21] Init file found and applied via polling")
+            print("[Bridge v22] Init file found via polling")
         end
     end
 end
 
 function Bridge.init()
-    print("[Bridge v21] init() starting...")
+    print("[Bridge v22] init() starting...")
 
     -- Detect browser environment (Love.js) - must be done after runtime init
     local detectedOS = love.system.getOS()
-    print("[Bridge v21] OS detected: " .. tostring(detectedOS))
+    print("[Bridge v22] OS detected: " .. tostring(detectedOS))
 
     -- Check for js global first (more reliable in Love.js)
     Bridge.isBrowser = (type(js) == "table" and js.global ~= nil)
@@ -145,19 +211,31 @@ function Bridge.init()
         -- Fallback to OS check
         Bridge.isBrowser = (detectedOS == "Web")
     end
-    print("[Bridge v21] isBrowser = " .. tostring(Bridge.isBrowser))
+    print("[Bridge v22] isBrowser = " .. tostring(Bridge.isBrowser))
 
-    -- ===== V21: Read initial state from bridge_init.json =====
-    -- This file is written by React via Emscripten FS
-    -- It may not exist yet if FS write is delayed
-    print("[Bridge v21] Attempting to read init file...")
+    -- ===== V22: Try reading from JS global first (most reliable) =====
+    -- This bypasses the broken Emscripten FS entirely
+    print("[Bridge v22] Attempting to read from js.global.INITIAL_WALLET_STATE...")
 
-    local initContent = Bridge.readInitFile()
-    if initContent then
-        Bridge.applyInitState(initContent)
+    local jsState = Bridge.readFromJSGlobal()
+    if jsState then
+        Bridge.walletConnected = jsState.connected == true
+        Bridge.walletAddress = jsState.address
+        if jsState.characterSeed then
+            Bridge.characterSeed = jsState.characterSeed
+        end
+        Bridge.initApplied = true
+        print("[Bridge v22] Init from JS global successful!")
     else
-        print("[Bridge v21] Init file not found yet, will poll in update()")
-        Bridge.needsInitPoll = true
+        -- Fallback: Try filesystem (probably won't work, but try anyway)
+        print("[Bridge v22] JS global failed, trying filesystem fallback...")
+        local initContent = Bridge.readInitFile()
+        if initContent then
+            Bridge.applyInitState(initContent)
+        else
+            print("[Bridge v22] All init methods failed, will poll in update()")
+            Bridge.needsInitPoll = true
+        end
     end
 
     -- Debug: Log filesystem paths for bridge setup
@@ -165,9 +243,9 @@ function Bridge.init()
         local saveDir = love.filesystem.getSaveDirectory()
         local sourceDir = love.filesystem.getSource()
         local identity = love.filesystem.getIdentity()
-        print("[Bridge v21] Save directory: " .. tostring(saveDir))
-        print("[Bridge v21] Source directory: " .. tostring(sourceDir))
-        print("[Bridge v21] Identity: " .. tostring(identity))
+        print("[Bridge v22] Save directory: " .. tostring(saveDir))
+        print("[Bridge v22] Source directory: " .. tostring(sourceDir))
+        print("[Bridge v22] Identity: " .. tostring(identity))
     end
 
     -- Set up global functions for JS to call (legacy, may not work in all Love.js builds)
@@ -236,7 +314,7 @@ function Bridge.init()
         }
     end
 
-    print("[Bridge v21] init() complete - walletConnected=" .. tostring(Bridge.walletConnected) .. ", initApplied=" .. tostring(Bridge.initApplied))
+    print("[Bridge v22] init() complete - walletConnected=" .. tostring(Bridge.walletConnected) .. ", initApplied=" .. tostring(Bridge.initApplied))
 end
 
 -- Poll for pending messages from JavaScript (called every frame)
