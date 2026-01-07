@@ -8,61 +8,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **UPDATE THIS FILE** at the end of every session with changes made
 3. **Check Session Notes** section for recent context
 
-### ⚠️ LOVE.JS BUILD WARNING ⚠️
+### ⚠️ PHASER 3 ARCHITECTURE RULES ⚠️
 
-**NEVER have duplicate game files!** The game MUST load from `/game/` subdirectory:
-
-```
-frontend/public/
-├── game/           ← CORRECT - All Love.js files go here
-│   ├── game.js
-│   ├── game.data
-│   └── love.js
-├── game.js         ← WRONG - DELETE if exists!
-├── game.data       ← WRONG - DELETE if exists!
-└── love.js         ← WRONG - DELETE if exists!
-```
-
-**GameCanvas.tsx must load from `/game/`:**
+**Text Rendering - NEVER use graphics.fillText():**
 ```typescript
-gameScript.src = '/game/game.js';   // NOT '/game.js'
-loveScript.src = '/game/love.js';   // NOT '/love.js'
+// WRONG - Phaser Graphics has NO fillText method
+this.graphics.fillText('Hello', x, y);  // This does NOT exist!
+
+// CORRECT - Use Phaser Text objects
+this.titleText = this.add.text(x, y, 'Hello', {
+  fontSize: '12px',
+  fontFamily: 'monospace',
+  color: '#ffffff',
+}).setOrigin(0.5).setDepth(10);
 ```
 
-**After running `npx love.js -c game frontend/public/game`:**
-1. Verify files are ONLY in `frontend/public/game/`
-2. Delete any game.js, game.data, love.js from `frontend/public/` root
-3. Check GameCanvas.tsx paths point to `/game/` subdirectory
-
-**Module.locateFile is REQUIRED:**
+**Graphics Clear - Scene manages, NOT entities:**
 ```typescript
-window.Module = {
-  // ... other config ...
-  locateFile: (path: string) => '/game/' + path,  // CRITICAL!
-};
-```
-Without this, Emscripten looks for game.data/love.wasm at `/` instead of `/game/`.
+// WRONG - in Character.ts or Enemy.ts
+draw(graphics) {
+  graphics.clear();  // This erases everything!
+  // ... draw code
+}
 
-### ⚠️ LUA CODE DEPLOYMENT REMINDER ⚠️
-
-**After ANY change to `game/src/*.lua` files, you MUST rebuild:**
-
-```bash
-npx love.js -c game frontend/public/game --title "Moisture"
+// CORRECT - Entity just draws, scene clears once per frame
+// In scene's draw() method:
+this.graphics.clear();
+this.characterGraphics.clear();
+// Then draw all entities...
 ```
 
-**Why this matters:**
-1. Lua code is packaged into `game.data` at build time
-2. `game.js` contains a UUID that identifies this build
-3. Browser caches `game.data` in IndexedDB by UUID
-4. **If you don't rebuild, users get OLD Lua code from IndexedDB cache forever!**
+**Event Routing - Use registry.events for game-wide events:**
+```typescript
+// WRONG - Scene-local events don't reach React
+this.events.emit('gameStateChanged', 'menu');
 
-**Correct deployment flow for Lua changes:**
-1. Edit `game/src/*.lua`
-2. Run `npx love.js -c game frontend/public/game --title "Moisture"`
-3. Verify new UUID: `grep -o 'package_uuid":"[^"]*"' frontend/public/game/game.js`
-4. `git add . && git commit && git push`
-5. User refreshes → sees "loading game.data from remote" → gets new code
+// CORRECT - Game-wide events reach React listeners
+this.registry.events.emit('gameStateChanged', 'menu');
+```
+
+### ⚠️ LOVE.JS FILES (DEPRECATED) ⚠️
+
+The `/game/` directory contains the old Love2D Lua code. It is kept for reference but is no longer used.
+The game now runs entirely in Phaser 3 TypeScript code in `/frontend/src/game/`.
 
 ---
 
@@ -224,7 +212,8 @@ STATE = {
 
 ## Tech Stack
 
-- **Game Engine**: Love2D (Lua) - pixel art, mobile-first portrait orientation
+- **Game Engine**: Phaser 3 (TypeScript) - pixel art, mobile-first portrait orientation
+  - Previously: Love2D (Lua) via Love.js - migrated due to iOS compatibility issues
 - **Blockchain**: Sui Network (Move smart contracts)
 - **Frontend**: React + Vite + TypeScript + Sui dApp Kit
 - **Real-time**: Firebase Realtime Database (chat/leaderboard)
@@ -235,28 +224,29 @@ STATE = {
 bullethell/
 ├── contracts/moisture/     # Sui Move smart contracts
 │   └── sources/game_core.move
-├── game/                   # Love2D game (Lua)
-│   ├── conf.lua            # Window config (450x800 portrait)
-│   ├── main.lua            # Main game loop
-│   ├── shaders/crt.glsl    # CRT retro effect
-│   ├── assets/sounds/      # Sound effect files (WAV)
-│   └── src/
-│       ├── pixelcanvas.lua # 180x320 pixel-perfect rendering
-│       ├── character.lua   # Humanoid pixel character generator
-│       ├── touchcontrols.lua # Mobile joystick movement
-│       ├── enemies.lua     # 10 anime-style enemy types
-│       ├── cards.lua       # Upgrade card definitions & UI
-│       ├── upgrades.lua    # Upgrade effect implementations
-│       ├── sauna.lua       # Social lounge system
-│       ├── sounds.lua      # Sound effects module
-│       └── bridge.lua      # Lua <-> JS communication
-└── frontend/               # React wrapper
+├── game/                   # Love2D game (Lua) - DEPRECATED, kept for reference
+│   └── ...
+└── frontend/               # React + Phaser 3 game
     ├── .env                # Environment variables
     ├── vercel.json         # Vercel deployment config
     ├── public/             # Static assets
     │   └── moisture.svg    # Favicon
     └── src/
         ├── App.tsx
+        ├── components/
+        │   └── GameCanvas.tsx  # Phaser game container
+        ├── game/               # Phaser 3 game (TypeScript)
+        │   ├── index.ts        # MoistureGame class, scene registry
+        │   ├── entities/
+        │   │   ├── Character.ts    # Procedural humanoid generation
+        │   │   ├── Enemy.ts        # Enemy types and behavior
+        │   │   └── Bullet.ts       # Bullet physics and bouncing
+        │   └── scenes/
+        │       ├── MenuScene.ts    # Title screen
+        │       ├── LoungeScene.ts  # Sauna social area
+        │       ├── CountdownScene.ts # 3-2-1-GO countdown
+        │       ├── GameScene.ts    # Main gameplay
+        │       └── DeathScene.ts   # Game over screen
         ├── bridge/{luaBridge.ts, oracle.ts}
         └── hooks/useFirebase*.ts
 ```
@@ -268,14 +258,11 @@ bullethell/
 cd contracts/moisture && sui move build
 sui client publish --gas-budget 100000000
 
-# Game (Love2D)
-love /path/to/bullethell/game
-# Or on macOS with downloaded app:
-/Applications/love.app/Contents/MacOS/love /path/to/bullethell/game
-
-# Frontend
+# Frontend + Phaser Game (combined)
 cd frontend && npm install && npm run dev
 npm run build  # Production build
+
+# The Phaser game is built together with the React frontend (no separate build step)
 ```
 
 ## Environment Variables (frontend/.env)
@@ -419,9 +406,12 @@ VITE_FIREBASE_APP_ID=
 - [x] **Wallet connect fix** (real React ConnectButton on menu)
 - [x] **Difficulty reduction** (spawn rate halved, slower scaling)
 - [x] **Wallet→Sauna transition fix (v22)** - Read js.global directly, bypass broken FS
+- [x] **Phaser 3 Migration** - Complete rewrite from Love.js to Phaser 3 for iOS compatibility
 
 ### Known Issues
-- [ ] Sound may still not work in some browsers - Love.js SDL2 audio context issues
+- [ ] Phaser game needs full gameplay testing (enemies, bullets, cards)
+- [x] Sound system integrated with Phaser (AudioSystem.ts + all scenes)
+- [x] Card selection input added (keyboard 1/2/3 + touch on cards)
 - [ ] Mobile chat keyboard may not appear on all devices - browser focus limitations
 
 ### Future Work
@@ -485,7 +475,221 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (v22 - Skip FS, Use js.global Directly)**:
+**Latest Session (Full UI/UX Redesign - Complete)**:
+Comprehensive visual overhaul of all 5 game scenes using synthwave/vaporwave aesthetic.
+
+**Visual Design Patterns Applied**:
+1. **Layered Graphics** - All scenes now use 3 graphics layers:
+   - `bgGraphics` (depth 0) - backgrounds, gradients, stars
+   - `graphics` (depth 5) - main scene elements
+   - `fxGraphics` (depth 15) - effects, scanlines, vignette
+
+2. **Chromatic Aberration** - Title text glow with magenta/cyan RGB split:
+   ```typescript
+   this.titleGlowMagenta = this.add.bitmapText(...).setTint(0xff00ff);
+   this.titleGlowCyan = this.add.bitmapText(...).setTint(0x00ffff);
+   ```
+
+3. **Particle Systems** - Atmospheric effects in each scene:
+   - MenuScene: 25 moisture particles (rising steam)
+   - LoungeScene: 15 steam particles
+   - DeathScene: 20 floating particles
+   - CountdownScene: 30 stars (streaming outward effect)
+
+4. **Scanlines + Vignette** - CRT aesthetic applied to all scenes
+
+**Files Modified**:
+- **MenuScene.ts** - Complete rewrite: perspective grid, moisture particles, chromatic title glow, button hover states
+- **LoungeScene.ts** - Steam particles, warm wood gradients, enhanced door (glow + arrow), medal indicators on leaderboard
+- **GameScene.ts** - Humidity shows value (e.g., "1.5x"), card text repositioned, card icons added
+- **DeathScene.ts** - Floating particles, gradient backgrounds (red for death, green for practice), ghost character at 0.5 alpha
+- **CountdownScene.ts** - Stars streaming outward, expanding rings on each number, corner accents, flash on "GO!"
+
+**Color Themes**:
+- Menu/Countdown: Neon cyan (0x00ffff), magenta accents
+- Lounge: Warm orange/amber (sauna warmth), wood browns
+- Death: Red (0xff6666) for death, green (0x66cc99) for practice
+- GO: Bright green (0x00ff80)
+
+**Build verified**: `npm run build` passes successfully
+
+---
+
+**Previous Session (Rendering Overhaul + MVP Prep - Complete)**:
+Fixed grainy/blurry rendering and prepared for MVP launch by removing oracle requirement.
+
+**Rendering Fixes**:
+1. **CSS Canvas Optimization** (`frontend/src/index.css`):
+   ```css
+   .game-canvas canvas {
+     image-rendering: crisp-edges;
+     image-rendering: pixelated;
+     -ms-interpolation-mode: nearest-neighbor;
+   }
+   ```
+
+2. **Phaser Zoom Config** (`frontend/src/game/index.ts`):
+   - Added `zoom: 2` to scale config for explicit 2x integer zoom
+   - Prevents browser sub-pixel interpolation artifacts
+
+**Smart Contract Changes** (`contracts/moisture/sources/game_core.move`):
+- Disabled oracle signature verification for testnet MVP
+- `submit_score` no longer requires signature parameter
+- Ticket ownership still validated by Sui's object model
+- Ed25519 import commented out, unused constants annotated
+
+**Frontend Changes** (`frontend/src/App.tsx`):
+- Commented out oracle verification import
+- `handleScoreSubmit` now submits directly to blockchain without oracle call
+- Removed signature argument from `submit_score` moveCall
+
+**Testing Verified**:
+- ✅ Menu: Crisp "MOISTURE" title, subtitle visible
+- ✅ Lounge: "THE SAUNA", leaderboard, chat all crisp
+- ✅ Game: Enemies, bullets, HUD all rendering properly
+- ✅ Death: Stats display, return to lounge works
+- ✅ Contract builds successfully
+- ✅ Frontend builds successfully
+
+**Remaining for Launch**:
+1. Create Firebase project + add credentials to `.env`
+2. Deploy contract: `cd contracts/moisture && sui client publish --gas-budget 100000000`
+3. Call `create_pool` to initialize game pool
+4. Update `.env` with PACKAGE_ID, GAME_POOL_ID, ORACLE_CAP_ID
+5. Deploy to Vercel
+
+---
+
+**Previous Session (Text Rendering Fixes - Complete)**:
+Fixed all text being "barely readable" after Phaser 3 migration. Font sizes were wrong throughout.
+
+**Root Cause**: Original Lua used consistent 8px/12px/16px fonts. Phaser migration used random 4px-32px sizes.
+
+**Font Size Standards** (must match original Love2D):
+- **16px** = Large titles (MOISTURE, EVAPORATED, countdown numbers, THE SAUNA)
+- **12px** = Medium emphasis (death stats, humidity indicator)
+- **8px** = All UI text (labels, chat, buttons, HUD, cards)
+
+**Files Modified**:
+1. **CountdownScene.ts** - CRITICAL: countdown was 32px (filled screen!), now 16px
+   - Added glow text layers with pulsing animation
+   - Practice label: 10px → 8px
+
+2. **GameScene.ts** - Card descriptions were 4px (unreadable!), now 8px
+   - Card names: 6px → 8px
+   - Card levels: 5px → 8px
+   - HUD time/score: 6-7px → 8px
+   - Humidity "!": 10px → 12px
+
+3. **LoungeScene.ts** - Added "THE SAUNA" title at 16px (was missing)
+   - All text was 4-6px, now 8px
+   - Leaderboard, chat, buttons all readable
+
+4. **MenuScene.ts** - Title 12px → 16px with glow effect
+   - Added subtitle "The Viscous High-Stakes Survivor" at 8px
+   - Footer: 6px → 8px
+
+5. **DeathScene.ts** - Title 10px → 16px with glow effect
+   - Stats: 7px → 12px (medium size)
+   - Prompt: 6px → 8px with pulsing animation
+
+**Glow Effect Pattern** (for future reference):
+```typescript
+// Create offset text layers behind main text
+this.glow1 = this.add.text(x-1, y-1, 'TEXT', {...}).setAlpha(0.3).setDepth(9);
+this.glow2 = this.add.text(x+1, y+1, 'TEXT', {...}).setAlpha(0.3).setDepth(9);
+this.mainText = this.add.text(x, y, 'TEXT', {...}).setDepth(10);
+
+// In update: pulse the glow
+const pulse = 0.7 + Math.sin(this.gameTime * 2) * 0.3;
+this.glow1.setAlpha(0.3 * pulse);
+```
+
+**Testing Verified**:
+- ✅ Menu: "MOISTURE" title large with subtitle visible
+- ✅ Lounge: "THE SAUNA" title, leaderboard, chat all readable
+- ✅ Game: HUD time/score visible, enemies spawning
+- ✅ Death: "PRACTICE" title large, stats readable, prompt pulsing
+
+**Build verified**: `npm run build` passes successfully
+
+---
+
+**Previous Session (Sound System + Card Selection - Complete)**:
+Completed the Phaser 3 integration by adding sound system and card selection input.
+
+**Changes Made**:
+1. **Card Selection Input** - Added keyboard (1/2/3) and touch/click input for selecting cards
+   - `GameScene.ts:setupInput()` - Added keydown listeners for ONE/TWO/THREE
+   - `GameScene.ts:pointerdown` - Added card click detection via `getClickedCardIndex()`
+   - `GameScene.ts:handleCardSelect()` - Now called from both keyboard and touch input
+
+2. **Sound System** - Created AudioSystem wrapper for Phaser's audio manager
+   - `frontend/src/game/systems/AudioSystem.ts` - New file with 10 sound definitions
+   - Sounds: shoot, bounce, hit, death, pickup, countdown, go, click, door, chat
+   - Graceful fallback if sound files missing
+
+3. **Sound Integration** - Added sound triggers throughout all scenes:
+   - `GameScene.ts` - shoot (enemy fire), bounce (wall hit), hit (player damage), death, pickup (card)
+   - `CountdownScene.ts` - countdown (3,2,1), go (GO!)
+   - `MenuScene.ts` - click (button press)
+   - `LoungeScene.ts` - door (enter game), click (practice toggle)
+   - `DeathScene.ts` - click (tap to continue)
+
+4. **Sound WAV Files** - Generated 10 retro-style sound files using Python
+   - Located in `frontend/public/assets/sounds/`
+
+**Build verified**: `npm run build` passes successfully
+
+---
+
+**Previous Session (Phaser 3 Migration - Complete)**:
+Migrated the entire game from Love.js (Lua) to Phaser 3 (TypeScript) due to iOS WebGL compatibility issues.
+
+**Why Migration Was Needed**:
+- Love.js had persistent iOS crashes (WebGL context issues)
+- Emscripten FS was not exported, breaking React-Lua communication
+- Browser audio context issues with SDL2
+
+**Phaser 3 Architecture**:
+
+1. **Text Rendering**: Use `this.add.text()` for all text labels
+   - Phaser Graphics objects have NO `fillText()` method
+   - All text must be created as Phaser Text game objects
+   - Set depth for proper layering: `.setDepth(10)` for UI text
+
+2. **Graphics Drawing**: Scene manages `graphics.clear()`
+   - Entity `draw()` methods must NOT call `graphics.clear()`
+   - Scene clears graphics ONCE at start of each frame
+   - Use separate graphics objects for different layers (background, characters, UI)
+
+3. **Event Routing**: Use `registry.events` for game-wide events
+   - `this.events.emit()` = scene-local (won't reach React)
+   - `this.registry.events.emit()` = game-wide (reaches React listeners)
+   - Events: 'gameStateChanged', 'requestWalletConnect', 'scoreSubmit'
+
+**Files Modified**:
+- `frontend/src/game/entities/Character.ts` - Removed graphics.clear()
+- `frontend/src/game/entities/Enemy.ts` - Removed graphics.clear()
+- `frontend/src/game/scenes/MenuScene.ts` - Added Text objects for title/buttons
+- `frontend/src/game/scenes/LoungeScene.ts` - Added Text objects, separate characterGraphics
+- `frontend/src/game/scenes/CountdownScene.ts` - Added countdown Text object
+- `frontend/src/game/scenes/GameScene.ts` - Added HUD Text objects (time, score, card timer)
+- `frontend/src/game/scenes/DeathScene.ts` - Added stats Text objects
+
+**Testing Verified**:
+- ✅ MenuScene: "MOISTURE" title, "PLAY AS GUEST" button, footer text visible
+- ✅ LoungeScene: Multiple characters visible (player + 4 NPCs), door with "GAME" label
+- ✅ Build succeeds with `npm run build`
+
+**Known Remaining Work**:
+- Full gameplay testing (enemies, bullets, cards)
+- Sound system integration
+- Wallet/blockchain integration testing
+
+---
+
+**Previous Session (v22 - Skip FS, Use js.global Directly)**:
 v21 still failed because Love.js was compiled WITHOUT `-s EXPORTED_RUNTIME_METHODS=['FS']`.
 The Emscripten FS is NEVER available to JavaScript, making the filesystem bridge impossible.
 

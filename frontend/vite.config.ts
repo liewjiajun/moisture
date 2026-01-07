@@ -12,6 +12,6 @@ export default defineConfig({
     open: true,
   },
   optimizeDeps: {
-    exclude: ['@mysten/dapp-kit'],
+    include: ['@mysten/dapp-kit', 'zustand', 'use-sync-external-store', 'use-sync-external-store/shim/with-selector'],
   },
 });

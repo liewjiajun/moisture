@@ -55,6 +55,10 @@ body,
   max-height: 100% !important;
   margin: auto !important;
   touch-action: none;
+  /* Crisp pixel rendering - prevents blurry upscaling */
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  -ms-interpolation-mode: nearest-neighbor;
 }
 
 /* Overlay UI */

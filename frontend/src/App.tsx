@@ -1,20 +1,20 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   ConnectButton,
   useCurrentAccount,
   useSignAndExecuteTransaction,
-  useSuiClient,
 } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
 
-import { luaBridge } from './bridge/luaBridge';
-import { verifyRun, ReplayData } from './bridge/oracle';
+// Oracle verification disabled for testnet MVP
+// import { verifyRun, ReplayData } from './bridge/oracle';
 import { useFirebaseChat } from './hooks/useFirebaseChat';
 import { useFirebaseLeaderboard } from './hooks/useFirebaseLeaderboard';
 import { useFirebaseStats } from './hooks/useFirebaseStats';
 import { useFirebaseRounds } from './hooks/useFirebaseRounds';
 import { useFirebasePresence } from './hooks/useFirebasePresence';
 import GameCanvas from './components/GameCanvas';
+import { GameState, WalletState } from './game/types';
 
 // Contract addresses (update after deployment)
 const PACKAGE_ID = import.meta.env.VITE_PACKAGE_ID || '0x0';
@@ -31,90 +31,30 @@ function generateSeedFromAddress(address: string): number {
   return parseInt(hexPart, 16) % 999999999;
 }
 
-// Extend Window interface for initial wallet state
-declare global {
-  interface Window {
-    INITIAL_WALLET_STATE?: {
-      connected: boolean;
-      address: string | null;
-      characterSeed: number;
-    };
-  }
-}
-
 function App() {
-  // Game mode: 'pending' = show landing screen, 'guest' or 'wallet' = load game
-  const [gameMode, setGameMode] = useState<'pending' | 'guest' | 'wallet'>('pending');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: string }[]>([]);
-  const [gameState, setGameState] = useState<string>('menu'); // Track Lua game state
+  const [gameState, setGameState] = useState<GameState>('menu');
 
-  // Loading timeout (45 seconds - WASM files are large)
-  // Only applies when game is actually loading (not in pending state)
-  useEffect(() => {
-    if (gameMode === 'pending') return;
-
-    const timeout = setTimeout(() => {
-      if (isLoading) {
-        setLoadError('Game engine failed to load. Please refresh the page.');
-        setIsLoading(false);
-      }
-    }, 45000);
-    return () => clearTimeout(timeout);
-  }, [isLoading, gameMode]);
-
-  // Resume Love.js SDL2 audio context on first user interaction
-  useEffect(() => {
-    const resumeLoveAudio = () => {
-      console.log('[Audio] Attempting to resume Love.js audio...');
-      try {
-        // Try SDL2 audio context (Love.js uses this)
-        if ((window as any).SDL2?.audioContext) {
-          (window as any).SDL2.audioContext.resume().then(() => {
-            console.log('[Audio] SDL2 audioContext resumed');
-          }).catch((e: any) => {
-            console.warn('[Audio] SDL2 resume failed:', e);
-          });
-        }
-        // Also try Module.audioContext (alternative Love.js setup)
-        if ((window as any).Module?.audioContext) {
-          (window as any).Module.audioContext.resume().then(() => {
-            console.log('[Audio] Module audioContext resumed');
-          }).catch((e: any) => {
-            console.warn('[Audio] Module resume failed:', e);
-          });
-        }
-      } catch (e) {
-        console.warn('[Audio] Failed to resume audio:', e);
-      }
-    };
-
-    // Resume on multiple interaction types
-    const events = ['click', 'touchstart', 'keydown'];
-    events.forEach(event => {
-      document.addEventListener(event, resumeLoveAudio, { once: true });
-    });
-
-    return () => {
-      events.forEach(event => {
-        document.removeEventListener(event, resumeLoveAudio);
-      });
-    };
-  }, []);
+  // Wallet state for Phaser
+  const [walletState, setWalletState] = useState<WalletState>({
+    connected: false,
+    address: null,
+    characterSeed: Date.now() + Math.floor(Math.random() * 999999),
+  });
 
   const account = useCurrentAccount();
-  const client = useSuiClient();
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
   // Firebase hooks
-  const { messages, sendMessage } = useFirebaseChat();
-  const { leaderboard, submitScore: submitLeaderboardScore } = useFirebaseLeaderboard();
-  const { stats, recordGameStart, recordGameEnd } = useFirebaseStats(account?.address || null);
-  const { pastRounds } = useFirebaseRounds();
-  const { onlinePlayers } = useFirebasePresence(account?.address || null);
+  useFirebaseChat();
+  const { submitScore: submitLeaderboardScore } = useFirebaseLeaderboard();
+  const { recordGameStart, recordGameEnd } = useFirebaseStats(account?.address || null);
+  useFirebaseRounds();
+  useFirebasePresence(account?.address || null);
 
   // Toast helper
   const showToast = useCallback((message: string, type = 'info') => {
@@ -125,98 +65,38 @@ function App() {
     }, 5000);
   }, []);
 
-  // Update Lua bridge with wallet state (for runtime changes after game loaded)
-  // Note: Initial state is passed via INITIAL_WALLET_STATE before game loads
+  // Update wallet state when account changes
   useEffect(() => {
-    if (gameMode === 'pending') return; // Don't do anything before game mode is chosen
-
     if (account) {
-      console.log('[Bridge v20] Wallet connected:', account.address);
-      luaBridge.setWalletState({
+      setWalletState({
         connected: true,
         address: account.address,
+        characterSeed: generateSeedFromAddress(account.address),
       });
     } else {
-      luaBridge.setWalletState({
+      setWalletState((prev) => ({
+        ...prev,
         connected: false,
         address: null,
-      });
+      }));
     }
-  }, [account, gameMode]);
-
-  // Sync chat messages to Lua
-  useEffect(() => {
-    messages.forEach((msg) => {
-      luaBridge.sendChatMessage(msg);
-    });
-  }, [messages]);
-
-  // Sync leaderboard to Lua
-  useEffect(() => {
-    if (leaderboard.length > 0) {
-      luaBridge.setLeaderboard(leaderboard.map(entry => ({
-        rank: entry.rank || 0,
-        address: entry.address,
-        survivalTime: entry.survivalTime,
-        score: entry.score,
-      })));
-    }
-  }, [leaderboard]);
-
-  // Sync player stats to Lua
-  useEffect(() => {
-    luaBridge.setPlayerStats({
-      gamesPlayed: stats.gamesPlayed,
-      bestTime: stats.bestTime,
-      totalSpent: stats.totalSpent,
-    });
-  }, [stats]);
-
-  // Sync past rounds to Lua
-  useEffect(() => {
-    if (pastRounds.length > 0) {
-      luaBridge.setPastRounds(pastRounds.map(round => ({
-        roundId: round.roundId,
-        endTime: round.endTime,
-        winners: round.winners.map(w => ({
-          rank: w.rank,
-          address: w.address,
-          survivalTime: w.survivalTime,
-        })),
-      })));
-    }
-  }, [pastRounds]);
-
-  // Sync online players to Lua
-  useEffect(() => {
-    luaBridge.setOnlinePlayers(onlinePlayers.map(player => ({
-      id: player.id,
-      address: player.address,
-      characterSeed: player.characterSeed,
-      x: player.x,
-      y: player.y,
-    })));
-  }, [onlinePlayers]);
+  }, [account]);
 
   // Prevent browser gestures (pinch zoom, pull-to-refresh, edge swipes)
   useEffect(() => {
-    // Prevent pinch-to-zoom
     const preventPinchZoom = (e: TouchEvent) => {
       if (e.touches.length > 1) {
         e.preventDefault();
       }
     };
 
-    // Prevent pull-to-refresh (only on canvas, not UI elements)
     const preventPullToRefresh = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
-      // Only prevent on canvas, allow clicks on buttons and other UI
       if (target.tagName === 'CANVAS' && window.scrollY === 0 && e.touches.length === 1) {
         e.preventDefault();
       }
     };
 
-    // Prevent double-tap zoom
     let lastTap = 0;
     const preventDoubleTapZoom = (e: TouchEvent) => {
       const now = Date.now();
@@ -226,10 +106,9 @@ function App() {
       lastTap = now;
     };
 
-    // Prevent edge swipe navigation (iOS Safari) - only on canvas
     const preventEdgeSwipe = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName !== 'CANVAS') return; // Allow UI elements
+      if (target.tagName !== 'CANVAS') return;
       const touch = e.touches[0];
       const edgeThreshold = 30;
       if (touch.clientX < edgeThreshold || touch.clientX > window.innerWidth - edgeThreshold) {
@@ -250,233 +129,146 @@ function App() {
     };
   }, []);
 
-  // Fetch pool data periodically
-  useEffect(() => {
-    const fetchPoolData = async () => {
-      if (GAME_POOL_ID === '0x0') return;
+  // Handle game state changes from Phaser
+  const handleGameStateChanged = useCallback((state: GameState) => {
+    console.log('[App] Game state changed:', state);
+    setGameState(state);
 
-      try {
-        const pool = await client.getObject({
-          id: GAME_POOL_ID,
-          options: { showContent: true },
-        });
-
-        if (pool.data?.content && 'fields' in pool.data.content) {
-          const fields = pool.data.content.fields as any;
-          luaBridge.setPoolData({
-            balance: Number(fields.balance) || 0,
-            endTimestamp: Number(fields.end_timestamp) || 0,
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch pool data:', error);
-      }
-    };
-
-    fetchPoolData();
-    const interval = setInterval(fetchPoolData, 10000);
-    return () => clearInterval(interval);
-  }, [client]);
-
-  // Handle enter game request from Lua
-  useEffect(() => {
-    const unsubscribe = luaBridge.on('requestEnterGame', async () => {
-      if (!account) {
-        showToast('Please connect your wallet first', 'error');
-        return;
-      }
-
-      try {
-        const tx = new Transaction();
-
-        // Split coin for entry fee
-        const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(ENTRY_FEE)]);
-
-        // Call enter_game
-        tx.moveCall({
-          target: `${PACKAGE_ID}::game_core::enter_game`,
-          arguments: [
-            tx.object(GAME_POOL_ID),
-            coin,
-            tx.object('0x6'), // Clock object
-          ],
-        });
-
-        signAndExecute(
-          { transaction: tx as any },
-          {
-            onSuccess: async (result: any) => {
-              showToast('Entered the game!', 'success');
-
-              // Find the created PlayerTicket
-              const createdObjects = result.effects?.created || [];
-              const ticketObj = createdObjects.find((obj: any) => obj.owner && 'AddressOwner' in obj.owner);
-
-              if (ticketObj) {
-                setPendingTicketId(ticketObj.reference.objectId);
-
-                // Generate character seed from address
-                const seed = parseInt(account.address.slice(2, 18), 16);
-
-                luaBridge.setGameData({
-                  characterSeed: seed,
-                  roundId: 1, // Would come from pool data
-                  ticketId: ticketObj.reference.objectId,
-                });
-
-                // Record game start in Firebase stats
-                recordGameStart();
-
-                luaBridge.startGame();
-                setIsPlaying(true);
-              }
-            },
-            onError: (error: any) => {
-              showToast(`Failed to enter game: ${error.message}`, 'error');
-            },
-          }
-        );
-      } catch (error) {
-        showToast(`Transaction error: ${error}`, 'error');
-      }
-    });
-
-    return unsubscribe;
-  }, [account, signAndExecute, showToast, recordGameStart]);
-
-  // Note: Wallet connect is now handled by showing the real ConnectButton on menu screen
-  // The Lua game no longer draws its own CONNECT WALLET button
-
-  // Handle score submission from Lua
-  useEffect(() => {
-    const unsubscribe = luaBridge.on('submitScore', async (data: any) => {
-      if (!account || !pendingTicketId) {
-        console.error('Cannot submit score: missing account or ticket');
-        return;
-      }
-
+    if (state === 'game') {
+      setIsPlaying(true);
+    } else if (state === 'death' || state === 'lounge' || state === 'menu') {
       setIsPlaying(false);
+    }
+  }, []);
 
-      // Submit to Firebase leaderboard (always, regardless of blockchain success)
-      submitLeaderboardScore(
-        account.address,
-        data.survivalTime,
-        Math.floor(data.survivalTime / 10), // Simple score calculation
-        data.roundId
-      );
+  // Handle score submission from Phaser
+  const handleScoreSubmit = useCallback(async (survivalTimeMs: number) => {
+    console.log('[App] Score submit:', survivalTimeMs);
 
-      // Record game end (update best time if applicable)
-      recordGameEnd(data.survivalTime);
-
-      // Create replay data for oracle verification
-      const replayData: ReplayData = {
-        playerId: account.address,
-        roundId: data.roundId,
-        survivalTime: data.survivalTime,
-        events: [{ timestamp: data.survivalTime, type: 'death', data: {} }],
-        checksum: '', // Would be computed from actual game data
-      };
-
-      try {
-        const verification = await verifyRun(replayData);
-
-        if (verification.valid && verification.signature) {
-          const tx = new Transaction();
-
-          tx.moveCall({
-            target: `${PACKAGE_ID}::game_core::submit_score`,
-            arguments: [
-              tx.object(GAME_POOL_ID),
-              tx.object(ORACLE_CAP_ID),
-              tx.object(pendingTicketId),
-              tx.pure.u64(data.survivalTime),
-              tx.pure.vector('u8', Array.from(verification.signature)),
-            ],
-          });
-
-          signAndExecute(
-            { transaction: tx as any },
-            {
-              onSuccess: () => {
-                showToast(`Score submitted: ${(data.survivalTime / 1000).toFixed(2)}s`, 'success');
-                setPendingTicketId(null);
-              },
-              onError: (error: any) => {
-                showToast(`Failed to submit score: ${error.message}`, 'error');
-              },
-            }
-          );
-        } else {
-          showToast('Score verification failed', 'error');
-        }
-      } catch (error) {
-        showToast(`Verification error: ${error}`, 'error');
+    if (!account || !pendingTicketId) {
+      console.log('[App] Score submitted (Firebase only - no wallet transaction)');
+      // Still submit to Firebase leaderboard
+      if (account) {
+        submitLeaderboardScore(
+          account.address,
+          survivalTimeMs,
+          Math.floor(survivalTimeMs / 10),
+          1 // Round ID
+        );
+        recordGameEnd(survivalTimeMs);
       }
-    });
+      return;
+    }
 
-    return unsubscribe;
+    // Submit to Firebase leaderboard
+    submitLeaderboardScore(
+      account.address,
+      survivalTimeMs,
+      Math.floor(survivalTimeMs / 10),
+      1
+    );
+    recordGameEnd(survivalTimeMs);
+
+    // Submit to blockchain (testnet MVP - no oracle verification)
+    try {
+      const tx = new Transaction();
+
+      tx.moveCall({
+        target: `${PACKAGE_ID}::game_core::submit_score`,
+        arguments: [
+          tx.object(GAME_POOL_ID),
+          tx.object(ORACLE_CAP_ID),
+          tx.object(pendingTicketId),
+          tx.pure.u64(survivalTimeMs),
+        ],
+      });
+
+      signAndExecute(
+        { transaction: tx as any },
+        {
+          onSuccess: () => {
+            showToast(`Score submitted: ${(survivalTimeMs / 1000).toFixed(2)}s`, 'success');
+            setPendingTicketId(null);
+          },
+          onError: (error: any) => {
+            showToast(`Failed to submit score: ${error.message}`, 'error');
+          },
+        }
+      );
+    } catch (error) {
+      showToast(`Transaction error: ${error}`, 'error');
+    }
   }, [account, pendingTicketId, signAndExecute, showToast, submitLeaderboardScore, recordGameEnd]);
 
-  // Handle chat from Lua
-  useEffect(() => {
-    const unsubscribe = luaBridge.on('sendChat', async (data: any) => {
-      if (data.message && account) {
-        await sendMessage(account.address, data.message);
-      }
-    });
+  // Handle wallet connect request from Phaser
+  const handleRequestWalletConnect = useCallback(() => {
+    console.log('[App] Wallet connect requested by game');
+    // The ConnectButton is always available in the UI
+    showToast('Please connect your wallet using the button above', 'info');
+  }, [showToast]);
 
-    return unsubscribe;
-  }, [account, sendMessage]);
+  // Handle enter game request from Phaser (blockchain transaction)
+  const handleRequestEnterGame = useCallback(async () => {
+    console.log('[App] Enter game requested');
 
-  // Track game state from Lua
-  useEffect(() => {
-    const unsubscribe = luaBridge.on('gameStateChanged', (data: any) => {
-      if (data.state) {
-        setGameState(data.state);
-      }
-    });
-
-    return unsubscribe;
-  }, []);
-
-  // Hidden chat input for mobile keyboard support
-  const chatInputRef = useRef<HTMLInputElement>(null);
-  const [chatInputValue, setChatInputValue] = useState('');
-
-  // Listen for chat activation from Lua
-  useEffect(() => {
-    const unsubscribe = luaBridge.on('activateChatInput', () => {
-      if (chatInputRef.current) {
-        chatInputRef.current.focus();
-      }
-    });
-
-    return unsubscribe;
-  }, []);
-
-  // Handle chat input submit
-  const handleChatSubmit = useCallback(() => {
-    if (chatInputValue.trim() && account) {
-      sendMessage(account.address, chatInputValue.trim());
-      setChatInputValue('');
-      if (chatInputRef.current) {
-        chatInputRef.current.blur();
-      }
+    if (!account) {
+      showToast('Please connect your wallet first', 'error');
+      return;
     }
-  }, [chatInputValue, account, sendMessage]);
 
-  // Handle emergency exit
-  const handleExit = useCallback(() => {
-    if (isPlaying) {
-      // Would trigger death in Lua
-      setIsPlaying(false);
-      showToast('Exited game', 'info');
+    try {
+      const tx = new Transaction();
+
+      const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(ENTRY_FEE)]);
+
+      tx.moveCall({
+        target: `${PACKAGE_ID}::game_core::enter_game`,
+        arguments: [
+          tx.object(GAME_POOL_ID),
+          coin,
+          tx.object('0x6'),
+        ],
+      });
+
+      signAndExecute(
+        { transaction: tx as any },
+        {
+          onSuccess: async (result: any) => {
+            showToast('Entered the game!', 'success');
+
+            const createdObjects = result.effects?.created || [];
+            const ticketObj = createdObjects.find((obj: any) => obj.owner && 'AddressOwner' in obj.owner);
+
+            if (ticketObj) {
+              setPendingTicketId(ticketObj.reference.objectId);
+              recordGameStart();
+
+              // Trigger game start in Phaser
+              if ((window as any).enterMoistureGame) {
+                (window as any).enterMoistureGame(false);
+              }
+            }
+          },
+          onError: (error: any) => {
+            showToast(`Failed to enter game: ${error.message}`, 'error');
+          },
+        }
+      );
+    } catch (error) {
+      showToast(`Transaction error: ${error}`, 'error');
     }
-  }, [isPlaying, showToast]);
+  }, [account, signAndExecute, showToast, recordGameStart]);
 
   // Dismiss toast
   const dismissToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Handle game loaded
+  const handleGameLoaded = useCallback(() => {
+    console.log('[App] Game loaded');
+    setIsLoading(false);
+    setLoadError(null);
   }, []);
 
   // Retry loading
@@ -486,70 +278,13 @@ function App() {
     window.location.reload();
   }, []);
 
-  // Handler for Play as Guest button
-  const handlePlayAsGuest = useCallback(() => {
-    console.log('[App v20] Play as Guest clicked');
-    window.INITIAL_WALLET_STATE = {
-      connected: false,
-      address: null,
-      characterSeed: Math.floor(Math.random() * 999999999),
-    };
-    setIsLoading(true);
-    setGameMode('guest');
-  }, []);
-
-  // Handler for Connect Wallet success - called after wallet is connected
-  const handleWalletConnected = useCallback(() => {
-    if (!account) return;
-    console.log('[App v20] Wallet connected, starting game:', account.address);
-    window.INITIAL_WALLET_STATE = {
-      connected: true,
-      address: account.address,
-      characterSeed: generateSeedFromAddress(account.address),
-    };
-    setIsLoading(true);
-    setGameMode('wallet');
-  }, [account]);
-
-  // Watch for account changes when in pending mode
-  useEffect(() => {
-    if (gameMode === 'pending' && account) {
-      // Wallet just connected while in pending mode
-      handleWalletConnected();
-    }
-  }, [account, gameMode, handleWalletConnected]);
-
-  // Landing screen (shown before game loads)
-  if (gameMode === 'pending') {
-    return (
-      <div className="game-container landing-screen">
-        <div className="landing-content">
-          <h1 className="landing-title">MOISTURE</h1>
-          <p className="landing-subtitle">The Viscous High-Stakes Survivor</p>
-
-          <div className="landing-buttons">
-            <div className="landing-wallet-button">
-              <ConnectButton />
-            </div>
-
-            <button className="landing-guest-button" onClick={handlePlayAsGuest}>
-              PLAY AS GUEST
-            </button>
-          </div>
-
-          <p className="landing-hint">Guests can practice for free</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="game-container">
       {/* Loading screen */}
       {isLoading && (
         <div className="loading-screen">
           <h1 className="loading-title">MOISTURE</h1>
-          <p className="loading-text">Loading game engine...</p>
+          <p className="loading-text">Loading game...</p>
           <div className="loading-bar">
             <div className="loading-bar-fill" />
           </div>
@@ -567,24 +302,29 @@ function App() {
         </div>
       )}
 
-      {/* Game canvas - only rendered after game mode is chosen */}
-      <GameCanvas onLoad={() => { setIsLoading(false); setLoadError(null); }} />
+      {/* Game canvas */}
+      <GameCanvas
+        onLoad={handleGameLoaded}
+        walletState={walletState}
+        onGameStateChanged={handleGameStateChanged}
+        onScoreSubmit={handleScoreSubmit}
+        onRequestWalletConnect={handleRequestWalletConnect}
+        onRequestEnterGame={handleRequestEnterGame}
+      />
+
+      {/* Connect wallet button - visible on menu */}
+      {gameState === 'menu' && !account && (
+        <div className="overlay wallet-overlay">
+          <ConnectButton />
+        </div>
+      )}
 
       {/* Connected wallet indicator */}
-      {account && !isPlaying && gameMode === 'wallet' && (
+      {account && !isPlaying && (
         <div className="overlay wallet-indicator">
           <span className="wallet-address">
             {account.address.slice(0, 6)}...{account.address.slice(-4)}
           </span>
-        </div>
-      )}
-
-      {/* Emergency exit button */}
-      {isPlaying && (
-        <div className="overlay exit-overlay">
-          <button className="exit-button" onClick={handleExit}>
-            EXIT (ESC)
-          </button>
         </div>
       )}
 
@@ -599,33 +339,6 @@ function App() {
           </div>
         ))}
       </div>
-
-      {/* Mobile chat input - tap directly to focus */}
-      {gameState === 'lounge' && (
-        <input
-          ref={chatInputRef}
-          type="text"
-          className="mobile-chat-input"
-          value={chatInputValue}
-          onChange={(e) => setChatInputValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleChatSubmit();
-            }
-          }}
-          onBlur={() => {
-            // Submit on blur if there's text (mobile keyboard dismiss)
-            if (chatInputValue.trim()) {
-              handleChatSubmit();
-            }
-          }}
-          placeholder="Tap here to chat..."
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-        />
-      )}
     </div>
   );
 }

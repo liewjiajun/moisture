@@ -4,7 +4,7 @@ module moisture::game_core {
     use sui::sui::SUI;
     use sui::clock::Clock;
     use sui::event;
-    use sui::ed25519;
+    // use sui::ed25519; // Disabled for testnet MVP - oracle verification skipped
     use sui::address as sui_address;
 
     // === Constants ===
@@ -17,7 +17,8 @@ module moisture::game_core {
     // === Errors ===
     const EInsufficientPayment: u64 = 0;
     const ERoundEnded: u64 = 1;
-    const EInvalidSignature: u64 = 2;
+    #[allow(unused_const)]
+    const EInvalidSignature: u64 = 2; // Unused in testnet MVP (oracle disabled)
     #[allow(unused_const)]
     const ENotAdmin: u64 = 3;
     #[allow(unused_const)]
@@ -196,14 +197,14 @@ module moisture::game_core {
         transfer::transfer(ticket, sender);
     }
 
-    /// Submit score with oracle signature verification
+    /// Submit score - testnet MVP version (no oracle verification)
+    /// For mainnet, re-enable signature verification for anti-cheat
     #[allow(lint(public_entry))]
     public entry fun submit_score(
         pool: &mut GamePool,
-        oracle_cap: &OracleCap,
+        _oracle_cap: &OracleCap, // Kept for API compatibility
         ticket: PlayerTicket,
         survival_time: u64,
-        signature: vector<u8>,
         _ctx: &mut TxContext
     ) {
         let PlayerTicket { id, character_seed: _, round_id, player } = ticket;
@@ -211,14 +212,9 @@ module moisture::game_core {
         // Verify the ticket is for current round
         assert!(round_id == pool.current_round, ERoundEnded);
 
-        // Verify signature from oracle
-        let message = create_score_message(player, round_id, survival_time);
-        let is_valid = ed25519::ed25519_verify(
-            &signature,
-            &oracle_cap.public_key,
-            &message
-        );
-        assert!(is_valid, EInvalidSignature);
+        // NOTE: Signature verification disabled for testnet MVP
+        // The ticket ownership is still validated by Sui's object model
+        // (only the ticket owner can pass it to this function)
 
         // Record score
         let score = Score {
@@ -400,6 +396,8 @@ module moisture::game_core {
         seed ^ round
     }
 
+    // Unused in testnet MVP (oracle verification disabled)
+    #[allow(unused_function)]
     fun create_score_message(player: address, round_id: u64, survival_time: u64): vector<u8> {
         let mut message = vector::empty<u8>();
 
