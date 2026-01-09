@@ -1,11 +1,22 @@
-// CountdownScene - 3...2...1...GO! before game
-// Enhanced with dramatic synthwave countdown visuals
+// CountdownScene - 3...2...1...GO! with dramatic synthwave countdown visuals
 
 import Phaser from 'phaser';
 import { getAudioSystem } from '../systems/AudioSystem';
 import { FONT_KEYS } from '../systems/FontSystem';
+import {
+  GAME_WIDTH,
+  GAME_HEIGHT,
+  Colors,
+  drawScanlines,
+  drawVignette,
+  createGlowText,
+  updateGlowTextPulse,
+  setGlowTextContent,
+  setGlowTextTint,
+  sinePulse,
+  GlowTextResult,
+} from '../systems/VisualEffects';
 
-// Expanding ring for dramatic effect
 interface ExpandRing {
   radius: number;
   alpha: number;
@@ -13,7 +24,6 @@ interface ExpandRing {
   color: number;
 }
 
-// Star particle for atmosphere
 interface StarParticle {
   x: number;
   y: number;
@@ -23,123 +33,85 @@ interface StarParticle {
 }
 
 export class CountdownScene extends Phaser.Scene {
-  static readonly GAME_WIDTH = 180;
-  static readonly GAME_HEIGHT = 320;
+  private bgGraphics!: Phaser.GameObjects.Graphics;
+  private graphics!: Phaser.GameObjects.Graphics;
+  private fxGraphics!: Phaser.GameObjects.Graphics;
 
-  // Graphics layers
-  bgGraphics!: Phaser.GameObjects.Graphics;
-  graphics!: Phaser.GameObjects.Graphics;
-  fxGraphics!: Phaser.GameObjects.Graphics;
+  private countdownTimer = 3.5;
+  private isPractice = false;
+  private gameTime = 0;
+  private lastNum = 4;
+  private playedSounds = new Set<number>();
+  private rings: ExpandRing[] = [];
+  private stars: StarParticle[] = [];
+  private flashAlpha = 0;
 
-  countdownTimer: number = 3.5;
-  isPractice: boolean = false;
-  gameTime: number = 0;
-  lastNum: number = 4; // Track number changes for ring spawns
-
-  // Track which sounds have been played
-  playedSounds: Set<number> = new Set();
-
-  // Expanding rings (spawn on each number)
-  rings: ExpandRing[] = [];
-
-  // Background stars
-  stars: StarParticle[] = [];
-
-  // Flash effect on GO
-  flashAlpha: number = 0;
-
-  // Text objects (BitmapText for pixel-perfect rendering)
-  countdownText!: Phaser.GameObjects.BitmapText;
-  countdownGlow1!: Phaser.GameObjects.BitmapText;
-  countdownGlow2!: Phaser.GameObjects.BitmapText;
-  countdownGlowOuter!: Phaser.GameObjects.BitmapText;
-  practiceText!: Phaser.GameObjects.BitmapText;
-  practiceGlow!: Phaser.GameObjects.BitmapText;
+  // Text objects
+  private countdownGlow!: GlowTextResult;
+  private practiceGlow!: GlowTextResult;
 
   constructor() {
     super({ key: 'CountdownScene' });
   }
 
-  init(data: { isPractice?: boolean }) {
+  init(data: { isPractice?: boolean }): void {
     this.isPractice = data.isPractice ?? false;
-    this.countdownTimer = 3.0; // Start at 3.0 so Math.ceil shows 3
+    this.countdownTimer = 3.0;
     this.gameTime = 0;
     this.lastNum = 4;
-    this.playedSounds = new Set(); // Reset for each countdown
+    this.playedSounds = new Set();
     this.rings = [];
     this.stars = [];
     this.flashAlpha = 0;
   }
 
-  create() {
-    const w = CountdownScene.GAME_WIDTH;
-    const h = CountdownScene.GAME_HEIGHT;
-
-    // Create layered graphics
+  create(): void {
     this.bgGraphics = this.add.graphics().setDepth(0);
     this.graphics = this.add.graphics().setDepth(5);
     this.fxGraphics = this.add.graphics().setDepth(15);
 
-    // Initialize stars
     this.initStars();
 
-    // Create chromatic aberration outer glow
-    this.countdownGlowOuter = this.add.bitmapText(w / 2, h / 2, FONT_KEYS.LARGE, '3')
-      .setOrigin(0.5)
-      .setDepth(7)
-      .setAlpha(0.2)
-      .setTint(0xff00ff);
+    // Countdown text with chromatic aberration
+    this.countdownGlow = createGlowText({
+      scene: this,
+      x: GAME_WIDTH / 2,
+      y: GAME_HEIGHT / 2,
+      fontKey: FONT_KEYS.LARGE,
+      text: '3',
+      glowColor: Colors.CYAN,
+      chromeColor: Colors.MAGENTA,
+      glowOffset: 2,
+      depth: 10,
+    });
 
-    // Create glow layers (behind main text)
-    this.countdownGlow1 = this.add.bitmapText(w / 2 - 2, h / 2 - 2, FONT_KEYS.LARGE, '3')
-      .setOrigin(0.5)
-      .setDepth(8)
-      .setAlpha(0.4)
-      .setTint(0x00ffff);
+    // Practice mode indicator
+    this.practiceGlow = createGlowText({
+      scene: this,
+      x: GAME_WIDTH / 2,
+      y: GAME_HEIGHT / 2 + 50,
+      fontKey: FONT_KEYS.SMALL,
+      text: 'PRACTICE MODE',
+      glowColor: 0x66ff66,
+      depth: 10,
+    });
+    this.practiceGlow.main.setTint(0x99ff99);
+    this.practiceGlow.main.setVisible(this.isPractice);
+    this.practiceGlow.glow1.setVisible(this.isPractice);
+    this.practiceGlow.glow2.setVisible(this.isPractice);
 
-    this.countdownGlow2 = this.add.bitmapText(w / 2 + 2, h / 2 + 2, FONT_KEYS.LARGE, '3')
-      .setOrigin(0.5)
-      .setDepth(8)
-      .setAlpha(0.4)
-      .setTint(0x00ffff);
+    // Initial ring for "3"
+    this.spawnRing(Colors.CYAN);
 
-    // Create countdown text (large centered number)
-    this.countdownText = this.add.bitmapText(w / 2, h / 2, FONT_KEYS.LARGE, '3')
-      .setOrigin(0.5)
-      .setDepth(10)
-      .setTint(0xffffff);
-
-    // Create practice mode indicator with glow
-    this.practiceGlow = this.add.bitmapText(w / 2, h / 2 + 50, FONT_KEYS.SMALL, 'PRACTICE MODE')
-      .setOrigin(0.5)
-      .setDepth(9)
-      .setAlpha(0.5)
-      .setTint(0x66ff66);
-
-    this.practiceText = this.add.bitmapText(w / 2, h / 2 + 50, FONT_KEYS.SMALL, 'PRACTICE MODE')
-      .setOrigin(0.5)
-      .setDepth(10)
-      .setTint(0x99ff99);
-
-    this.practiceText.setVisible(this.isPractice);
-    this.practiceGlow.setVisible(this.isPractice);
-
-    // Spawn initial ring for "3"
-    this.spawnRing(0x00ffff);
-
-    // Emit state change (use registry.events for game-wide events)
     this.registry.set('gameState', 'countdown');
     this.registry.events.emit('gameStateChanged', 'countdown');
   }
 
-  initStars() {
-    const w = CountdownScene.GAME_WIDTH;
-    const h = CountdownScene.GAME_HEIGHT;
-
+  private initStars(): void {
     for (let i = 0; i < 30; i++) {
       this.stars.push({
-        x: Math.random() * w,
-        y: Math.random() * h,
+        x: Math.random() * GAME_WIDTH,
+        y: Math.random() * GAME_HEIGHT,
         size: 0.5 + Math.random() * 1.5,
         speed: 20 + Math.random() * 40,
         alpha: 0.2 + Math.random() * 0.5,
@@ -147,24 +119,22 @@ export class CountdownScene extends Phaser.Scene {
     }
   }
 
-  spawnRing(color: number) {
-    // Spawn multiple rings for dramatic effect
+  private spawnRing(color: number): void {
     for (let i = 0; i < 3; i++) {
       this.rings.push({
         radius: 20 + i * 10,
         alpha: 0.8 - i * 0.2,
         speed: 80 + i * 20,
-        color: color,
+        color,
       });
     }
   }
 
-  update(_time: number, delta: number) {
+  update(_time: number, delta: number): void {
     const dt = delta / 1000;
     this.gameTime += dt;
     this.countdownTimer -= dt;
 
-    // Play countdown sounds (3, 2, 1) with pitch variation
     const audio = getAudioSystem();
     const num = Math.ceil(this.countdownTimer);
 
@@ -172,13 +142,13 @@ export class CountdownScene extends Phaser.Scene {
     if (num !== this.lastNum && num >= 0 && num <= 3) {
       this.lastNum = num;
       if (num > 0) {
-        this.spawnRing(0x00ffff);
+        this.spawnRing(Colors.CYAN);
       }
     }
 
+    // Play countdown sounds
     if (num >= 1 && num <= 3 && !this.playedSounds.has(num)) {
       this.playedSounds.add(num);
-      // Different pitch for each number: 3=low, 2=normal, 1=high
       const pitchMap: Record<number, number> = { 3: 0.8, 2: 1.0, 1: 1.2 };
       audio?.playWithPitch('countdown', pitchMap[num] || 1.0);
     }
@@ -188,19 +158,15 @@ export class CountdownScene extends Phaser.Scene {
       this.playedSounds.add(0);
       audio?.play('go');
       this.flashAlpha = 1.0;
-      this.spawnRing(0x00ff80); // Green rings for GO
+      this.spawnRing(0x00ff80);
     }
 
     // Update flash
     if (this.flashAlpha > 0) {
-      this.flashAlpha -= dt * 3;
-      if (this.flashAlpha < 0) this.flashAlpha = 0;
+      this.flashAlpha = Math.max(0, this.flashAlpha - dt * 3);
     }
 
-    // Update rings
     this.updateRings(dt);
-
-    // Update stars
     this.updateStars(dt);
 
     if (this.countdownTimer <= 0) {
@@ -214,7 +180,7 @@ export class CountdownScene extends Phaser.Scene {
     this.draw();
   }
 
-  updateRings(dt: number) {
+  private updateRings(dt: number): void {
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const ring = this.rings[i];
       ring.radius += ring.speed * dt;
@@ -226,14 +192,14 @@ export class CountdownScene extends Phaser.Scene {
     }
   }
 
-  updateStars(dt: number) {
-    const w = CountdownScene.GAME_WIDTH;
-    const h = CountdownScene.GAME_HEIGHT;
+  private updateStars(dt: number): void {
+    const centerX = GAME_WIDTH / 2;
+    const centerY = GAME_HEIGHT / 2;
 
     for (const star of this.stars) {
       // Stars move toward center (zoom effect)
-      const dx = star.x - w / 2;
-      const dy = star.y - h / 2;
+      const dx = star.x - centerX;
+      const dy = star.y - centerY;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist > 1) {
@@ -242,42 +208,50 @@ export class CountdownScene extends Phaser.Scene {
       }
 
       // Respawn when too far from center
-      if (star.x < -10 || star.x > w + 10 || star.y < -10 || star.y > h + 10) {
-        // Respawn near center
+      if (star.x < -10 || star.x > GAME_WIDTH + 10 || star.y < -10 || star.y > GAME_HEIGHT + 10) {
         const angle = Math.random() * Math.PI * 2;
         const radius = 20 + Math.random() * 30;
-        star.x = w / 2 + Math.cos(angle) * radius;
-        star.y = h / 2 + Math.sin(angle) * radius;
+        star.x = centerX + Math.cos(angle) * radius;
+        star.y = centerY + Math.sin(angle) * radius;
       }
     }
   }
 
-  draw() {
-    const w = CountdownScene.GAME_WIDTH;
-    const h = CountdownScene.GAME_HEIGHT;
-
+  private draw(): void {
     this.bgGraphics.clear();
     this.graphics.clear();
     this.fxGraphics.clear();
 
-    // === BACKGROUND ===
+    this.drawBackground();
+    this.drawStars();
+    this.drawRings();
+    this.drawCountdownNumber();
+    this.drawPracticeIndicator();
+    this.drawCornerAccents();
+    drawScanlines(this.fxGraphics, GAME_WIDTH, GAME_HEIGHT, 4, 0.08);
+    this.drawFlash();
+    drawVignette(this.fxGraphics, GAME_WIDTH, GAME_HEIGHT, 4, 12, 0.2);
+  }
 
-    // Deep space gradient
-    for (let y = 0; y < h; y += 2) {
-      const t = Math.abs(y - h / 2) / (h / 2);
+  private drawBackground(): void {
+    for (let y = 0; y < GAME_HEIGHT; y += 2) {
+      const t = Math.abs(y - GAME_HEIGHT / 2) / (GAME_HEIGHT / 2);
       const r = Math.floor(5 + t * 10);
       const g = Math.floor(2 + t * 5);
       const b = Math.floor(15 + t * 10);
       const color = (r << 16) | (g << 8) | b;
       this.bgGraphics.fillStyle(color, 1);
-      this.bgGraphics.fillRect(0, y, w, 2);
+      this.bgGraphics.fillRect(0, y, GAME_WIDTH, 2);
     }
+  }
 
-    // Draw stars (streaming outward effect)
+  private drawStars(): void {
+    const centerX = GAME_WIDTH / 2;
+    const centerY = GAME_HEIGHT / 2;
+
     for (const star of this.stars) {
-      // Draw streak
-      const dx = star.x - w / 2;
-      const dy = star.y - h / 2;
+      const dx = star.x - centerX;
+      const dy = star.y - centerY;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist > 1) {
@@ -289,141 +263,118 @@ export class CountdownScene extends Phaser.Scene {
         this.bgGraphics.lineBetween(star.x, star.y, endX, endY);
       }
 
-      // Star core
       this.bgGraphics.fillStyle(0xffffff, star.alpha);
       this.bgGraphics.fillCircle(star.x, star.y, star.size * 0.5);
     }
+  }
 
-    // === EXPANDING RINGS ===
+  private drawRings(): void {
     for (const ring of this.rings) {
       this.graphics.lineStyle(3, ring.color, ring.alpha * 0.6);
-      this.graphics.strokeCircle(w / 2, h / 2, ring.radius);
+      this.graphics.strokeCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2, ring.radius);
 
-      // Inner ring (thinner)
       this.graphics.lineStyle(1, 0xffffff, ring.alpha * 0.4);
-      this.graphics.strokeCircle(w / 2, h / 2, ring.radius * 0.9);
+      this.graphics.strokeCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2, ring.radius * 0.9);
     }
+  }
 
-    // === COUNTDOWN NUMBER ===
+  private drawCountdownNumber(): void {
     const num = Math.ceil(this.countdownTimer);
     const isGo = num <= 0;
+    const textContent = isGo ? 'GO!' : num.toString();
 
     // Color scheme
-    const mainColor = isGo ? 0x00ff80 : 0x00ffff;
-    const glowColor = isGo ? 0x00ff80 : 0x00ffff;
-    const chromeColor = isGo ? 0xff00ff : 0xff00ff;
+    const mainColor = isGo ? 0x00ff80 : Colors.CYAN;
+    const glowColor = isGo ? 0x00ff80 : Colors.CYAN;
+    const chromeColor = Colors.MAGENTA;
+
+    // Update text content and colors
+    setGlowTextContent(this.countdownGlow, textContent);
+    setGlowTextTint(this.countdownGlow, 0xffffff, glowColor, chromeColor);
 
     // Pulsing effect
-    const pulse = 0.7 + Math.sin(this.gameTime * 6) * 0.3;
+    const pulse = sinePulse(this.gameTime, 6, 0.3, 0.7);
     const beat = Math.max(0, Math.sin((this.countdownTimer % 1) * Math.PI));
 
-    // Update text content
-    const textContent = isGo ? 'GO!' : num.toString();
-    this.countdownText.setText(textContent);
-    this.countdownGlow1.setText(textContent);
-    this.countdownGlow2.setText(textContent);
-    this.countdownGlowOuter.setText(textContent);
+    // Update glow alphas
+    updateGlowTextPulse(this.countdownGlow, pulse, beat);
 
-    // Update tints
-    this.countdownText.setTint(0xffffff);
-    this.countdownGlow1.setTint(glowColor);
-    this.countdownGlow2.setTint(glowColor);
-    this.countdownGlowOuter.setTint(chromeColor);
-
-    // Pulse the glows
-    this.countdownGlow1.setAlpha(0.4 * pulse);
-    this.countdownGlow2.setAlpha(0.4 * pulse);
-    this.countdownGlowOuter.setAlpha(0.2 + beat * 0.2);
-
-    // Center glow circle (large, soft)
+    // Center glow circle
     this.graphics.fillStyle(mainColor, 0.15 * pulse);
-    this.graphics.fillCircle(w / 2, h / 2, 60);
+    this.graphics.fillCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 60);
 
     // Pulsing ring around number
     const ringPulse = 35 + beat * 15;
     this.graphics.lineStyle(4, mainColor, 0.5 * pulse);
-    this.graphics.strokeCircle(w / 2, h / 2, ringPulse);
+    this.graphics.strokeCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2, ringPulse);
 
     // Inner glow
     this.graphics.fillStyle(mainColor, 0.3 * pulse);
-    this.graphics.fillCircle(w / 2, h / 2, 25);
+    this.graphics.fillCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 25);
 
     // Core circle (dark)
     this.graphics.fillStyle(0x000000, 0.85);
-    this.graphics.fillCircle(w / 2, h / 2, 20);
+    this.graphics.fillCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 20);
+  }
 
-    // Practice mode indicator
-    if (this.isPractice) {
-      const practicePulse = 0.6 + Math.sin(this.gameTime * 2) * 0.3;
-      this.practiceGlow.setAlpha(0.5 * practicePulse);
-      this.practiceText.setAlpha(practicePulse);
+  private drawPracticeIndicator(): void {
+    if (!this.isPractice) return;
 
-      // Background for practice text
-      this.graphics.fillStyle(0x339933, 0.6 * practicePulse);
-      this.graphics.fillRoundedRect(w / 2 - 50, h / 2 + 40, 100, 20, 4);
+    const practicePulse = sinePulse(this.gameTime, 2, 0.3, 0.6);
+    updateGlowTextPulse(this.practiceGlow, practicePulse);
+    this.practiceGlow.main.setAlpha(practicePulse);
 
-      // Border
-      this.graphics.lineStyle(1, 0x66ff66, 0.5 * practicePulse);
-      this.graphics.strokeRoundedRect(w / 2 - 50, h / 2 + 40, 100, 20, 4);
-    }
+    // Background for practice text
+    this.graphics.fillStyle(0x339933, 0.6 * practicePulse);
+    this.graphics.fillRoundedRect(GAME_WIDTH / 2 - 50, GAME_HEIGHT / 2 + 40, 100, 20, 4);
 
-    // === EFFECTS ===
+    this.graphics.lineStyle(1, 0x66ff66, 0.5 * practicePulse);
+    this.graphics.strokeRoundedRect(GAME_WIDTH / 2 - 50, GAME_HEIGHT / 2 + 40, 100, 20, 4);
+  }
 
-    // Corner accents
-    const accentColor = isGo ? 0x00ff80 : 0x00ffff;
+  private drawCornerAccents(): void {
+    const num = Math.ceil(this.countdownTimer);
+    const isGo = num <= 0;
+    const accentColor = isGo ? 0x00ff80 : Colors.CYAN;
+    const beat = Math.max(0, Math.sin((this.countdownTimer % 1) * Math.PI));
     const accentAlpha = 0.3 + beat * 0.2;
 
-    // Top left
     this.fxGraphics.lineStyle(2, accentColor, accentAlpha);
+
+    // Top left
     this.fxGraphics.lineBetween(10, 20, 10, 40);
     this.fxGraphics.lineBetween(10, 20, 30, 20);
 
     // Top right
-    this.fxGraphics.lineBetween(w - 10, 20, w - 10, 40);
-    this.fxGraphics.lineBetween(w - 10, 20, w - 30, 20);
+    this.fxGraphics.lineBetween(GAME_WIDTH - 10, 20, GAME_WIDTH - 10, 40);
+    this.fxGraphics.lineBetween(GAME_WIDTH - 10, 20, GAME_WIDTH - 30, 20);
 
     // Bottom left
-    this.fxGraphics.lineBetween(10, h - 20, 10, h - 40);
-    this.fxGraphics.lineBetween(10, h - 20, 30, h - 20);
+    this.fxGraphics.lineBetween(10, GAME_HEIGHT - 20, 10, GAME_HEIGHT - 40);
+    this.fxGraphics.lineBetween(10, GAME_HEIGHT - 20, 30, GAME_HEIGHT - 20);
 
     // Bottom right
-    this.fxGraphics.lineBetween(w - 10, h - 20, w - 10, h - 40);
-    this.fxGraphics.lineBetween(w - 10, h - 20, w - 30, h - 20);
+    this.fxGraphics.lineBetween(GAME_WIDTH - 10, GAME_HEIGHT - 20, GAME_WIDTH - 10, GAME_HEIGHT - 40);
+    this.fxGraphics.lineBetween(GAME_WIDTH - 10, GAME_HEIGHT - 20, GAME_WIDTH - 30, GAME_HEIGHT - 20);
+  }
 
-    // Scanlines
-    for (let y = 0; y < h; y += 4) {
-      this.fxGraphics.fillStyle(0x000000, 0.08);
-      this.fxGraphics.fillRect(0, y, w, 1);
-    }
-
-    // Flash effect (on GO)
+  private drawFlash(): void {
     if (this.flashAlpha > 0) {
       this.fxGraphics.fillStyle(0xffffff, this.flashAlpha * 0.6);
-      this.fxGraphics.fillRect(0, 0, w, h);
-    }
-
-    // Vignette
-    for (let i = 1; i <= 4; i++) {
-      const size = i * 12;
-      const alpha = 0.2 * (1 - i / 5);
-      this.fxGraphics.fillStyle(0x000000, alpha);
-      this.fxGraphics.fillTriangle(0, 0, size, 0, 0, size);
-      this.fxGraphics.fillTriangle(w, 0, w - size, 0, w, size);
-      this.fxGraphics.fillTriangle(0, h, size, h, 0, h - size);
-      this.fxGraphics.fillTriangle(w, h, w - size, h, w, h - size);
+      this.fxGraphics.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     }
   }
 
-  // Clean up when scene shuts down
-  shutdown() {
+  shutdown(): void {
     this.bgGraphics?.destroy();
     this.graphics?.destroy();
     this.fxGraphics?.destroy();
-    this.countdownText?.destroy();
-    this.countdownGlow1?.destroy();
-    this.countdownGlow2?.destroy();
-    this.countdownGlowOuter?.destroy();
-    this.practiceText?.destroy();
-    this.practiceGlow?.destroy();
+    this.countdownGlow?.main?.destroy();
+    this.countdownGlow?.glow1?.destroy();
+    this.countdownGlow?.glow2?.destroy();
+    this.countdownGlow?.chrome?.destroy();
+    this.practiceGlow?.main?.destroy();
+    this.practiceGlow?.glow1?.destroy();
+    this.practiceGlow?.glow2?.destroy();
   }
 }
