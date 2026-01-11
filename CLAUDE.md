@@ -475,7 +475,66 @@ vercel --prod  # Deploy to production
 
 _Add notes here during development sessions to preserve context across auto-compacts._
 
-**Latest Session (Full UI/UX Redesign - Complete)**:
+**Latest Session (Firebase Integration & UX Polish - Complete)**:
+Connected Firebase chat/leaderboard to Phaser scenes and added gameplay UX improvements.
+
+**Key Changes Made**:
+
+1. **Chat Integration** - Firebase chat now displays in LoungeScene:
+   - Added `setChatMessages()`, `setLeaderboard()`, `setRoundInfo()` to MoistureGame class
+   - Updated GameCanvas.tsx to pass Firebase data to Phaser via registry
+   - LoungeScene reads from registry and updates dynamic text elements
+
+2. **LoungeScene Polish**:
+   - Real-time chat display (last 3 messages, truncated for fit)
+   - Dynamic leaderboard with player addresses and times
+   - Round timer display (MM:SS format)
+   - Prize pool display (converted from MIST to SUI)
+   - Online player count
+
+3. **MenuScene Polish**:
+   - New tagline: "DODGE. UPGRADE. SURVIVE."
+   - Guest mode hint: "PRACTICE ONLY" (pulsing orange)
+   - Wallet connect hint: "CONNECT WALLET TO COMPETE" (pulsing gold)
+   - Help button "?" in top-right (shows quick tip on click)
+   - Footer changed to "WIN SUI PRIZES!"
+
+4. **GameScene Polish**:
+   - Tutorial hint "DODGE!" for first 5 seconds (fades out)
+   - Red screen flash damage effect when player is hit
+   - `damageFlash` state variable for overlay intensity
+
+5. **DeathScene Polish**:
+   - Leaderboard rank display (1ST/2ND/3RD with medals, or #N)
+   - "NEW BEST!" celebration for personal records (yellow glow effect)
+   - `calculateRankInfo()` method compares to Firebase leaderboard
+
+6. **Type Alignment**:
+   - Updated `LeaderboardEntry` in types.ts to match Firebase format
+   - Fields: `rank`, `address`, `survivalTime`, `score`, `timestamp`, `roundId`
+
+7. **Firebase Hooks Updates**:
+   - `useFirebaseRounds.ts`: Added `RoundInfo` interface with `timeRemaining` and `prizePool`
+   - `useFirebasePresence.ts`: Added `onlineCount` to return value
+
+**Files Modified**:
+- `frontend/src/App.tsx` - Pass Firebase data to GameCanvas
+- `frontend/src/components/GameCanvas.tsx` - Accept and forward chat/leaderboard props
+- `frontend/src/game/index.ts` - Add setChatMessages, setLeaderboard, setRoundInfo methods
+- `frontend/src/game/types.ts` - Updated LeaderboardEntry interface
+- `frontend/src/game/scenes/LoungeScene.ts` - Dynamic chat/leaderboard/round display
+- `frontend/src/game/scenes/MenuScene.ts` - Tagline, hints, help button
+- `frontend/src/game/scenes/GameScene.ts` - Tutorial hint, damage flash
+- `frontend/src/game/scenes/DeathScene.ts` - Rank display, NEW BEST celebration
+- `frontend/src/hooks/useFirebaseRounds.ts` - Return roundInfo
+- `frontend/src/hooks/useFirebasePresence.ts` - Return onlineCount
+
+**Build verified**: `npm run build` passes successfully
+**Deployed**: Pushed to Vercel via `git push origin main`
+
+---
+
+**Previous Session (Full UI/UX Redesign - Complete)**:
 Comprehensive visual overhaul of all 5 game scenes using synthwave/vaporwave aesthetic.
 
 **Visual Design Patterns Applied**:
