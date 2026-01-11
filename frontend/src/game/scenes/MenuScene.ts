@@ -37,6 +37,9 @@ export class MenuScene extends Phaser.Scene {
   private titleGlowCyan!: Phaser.GameObjects.BitmapText;
   private subtitleText!: Phaser.GameObjects.BitmapText;
   private guestButtonText!: Phaser.GameObjects.BitmapText;
+  private guestHintText!: Phaser.GameObjects.BitmapText;
+  private walletHintText!: Phaser.GameObjects.BitmapText;
+  private helpText!: Phaser.GameObjects.BitmapText;
   private footerText!: Phaser.GameObjects.BitmapText;
 
   constructor() {
@@ -93,19 +96,40 @@ export class MenuScene extends Phaser.Scene {
     });
 
     // Subtitle
-    this.subtitleText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT * 0.25 + 34, FONT_KEYS.SMALL, 'BULLET HELL SURVIVOR')
+    this.subtitleText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT * 0.25 + 34, FONT_KEYS.SMALL, 'DODGE. UPGRADE. SURVIVE.')
       .setOrigin(0.5)
       .setDepth(10)
       .setAlpha(0.7)
       .setTint(Colors.CYAN);
 
-    // Button and footer
+    // Guest button
     this.guestButtonText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT * 0.72 + 12, FONT_KEYS.SMALL, 'PLAY AS GUEST')
       .setOrigin(0.5)
       .setDepth(11)
       .setTint(0xffffff);
 
-    this.footerText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT - 15, FONT_KEYS.SMALL, 'TAP TO ENTER')
+    // Guest mode hint (practice only)
+    this.guestHintText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT * 0.72 + 30, FONT_KEYS.SMALL, 'PRACTICE ONLY')
+      .setOrigin(0.5)
+      .setDepth(10)
+      .setAlpha(0.5)
+      .setTint(0xffaa66);
+
+    // Wallet connect hint
+    this.walletHintText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT * 0.82, FONT_KEYS.SMALL, 'CONNECT WALLET TO COMPETE')
+      .setOrigin(0.5)
+      .setDepth(10)
+      .setAlpha(0.4)
+      .setTint(Colors.GOLD);
+
+    // Help text (top right)
+    this.helpText = this.add.bitmapText(GAME_WIDTH - 10, 10, FONT_KEYS.SMALL, '?')
+      .setOrigin(1, 0)
+      .setDepth(11)
+      .setTint(0x888888);
+
+    // Footer
+    this.footerText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT - 15, FONT_KEYS.SMALL, 'WIN SUI PRIZES!')
       .setOrigin(0.5)
       .setDepth(10)
       .setTint(0x666666);
@@ -129,6 +153,13 @@ export class MenuScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (this.isInBounds(pointer.x, pointer.y, btnX, guestY, btnW, btnH)) {
         this.enterAsGuest();
+        return;
+      }
+
+      // Help button click (top right)
+      if (this.isInBounds(pointer.x, pointer.y, GAME_WIDTH - 25, 5, 20, 20)) {
+        this.showHelp();
+        return;
       }
     });
 
@@ -138,6 +169,17 @@ export class MenuScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown-SPACE', () => this.enterAsGuest());
     this.input.keyboard?.on('keydown-ENTER', () => this.enterAsGuest());
+    this.input.keyboard?.on('keydown-H', () => this.showHelp());
+  }
+
+  private showHelp(): void {
+    getAudioSystem()?.play('click');
+    // For now, just show a quick tip by pulsing the subtitle
+    // In the future, this could open a modal
+    this.subtitleText.setText('AVOID BULLETS!');
+    this.time.delayedCall(2000, () => {
+      this.subtitleText.setText('DODGE. UPGRADE. SURVIVE.');
+    });
   }
 
   private isInBounds(x: number, y: number, bx: number, by: number, bw: number, bh: number): boolean {
@@ -289,6 +331,10 @@ export class MenuScene extends Phaser.Scene {
 
     // Button text color
     this.guestButtonText.setTint(this.isButtonHovered ? Colors.CYAN : 0xffffff);
+
+    // Guest hint pulse
+    const hintPulse = sinePulse(this.gameTime, 2, 0.3, 0.6);
+    this.guestHintText.setAlpha(hintPulse);
   }
 
   private drawFooter(): void {
@@ -296,5 +342,17 @@ export class MenuScene extends Phaser.Scene {
     this.graphics.fillStyle(0x333333, footerPulse);
     this.graphics.fillRoundedRect(GAME_WIDTH / 2 - 50, GAME_HEIGHT - 22, 100, 14, 2);
     this.footerText.setAlpha(footerPulse);
+
+    // Animate wallet hint
+    const walletPulse = sinePulse(this.gameTime, 1.5, 0.3, 0.5);
+    this.walletHintText.setAlpha(walletPulse);
+
+    // Draw help button background
+    const helpPulse = sinePulse(this.gameTime, 3, 0.3, 0.5);
+    this.graphics.fillStyle(0x333333, helpPulse);
+    this.graphics.fillCircle(GAME_WIDTH - 14, 14, 10);
+    this.graphics.lineStyle(1, 0x666666, helpPulse);
+    this.graphics.strokeCircle(GAME_WIDTH - 14, 14, 10);
+    this.helpText.setAlpha(helpPulse + 0.3);
   }
 }

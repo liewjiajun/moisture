@@ -32,7 +32,13 @@ export class DeathScene extends Phaser.Scene {
   // Text objects
   private titleGlow!: GlowTextResult;
   private promptText!: Phaser.GameObjects.BitmapText;
+  private rankText!: Phaser.GameObjects.BitmapText;
+  private newBestText!: Phaser.GameObjects.BitmapText;
   private staticTexts: Phaser.GameObjects.BitmapText[] = [];
+
+  // Player rank and high score info
+  private playerRank: number | null = null;
+  private isNewBest = false;
 
   constructor() {
     super({ key: 'DeathScene' });
@@ -60,6 +66,9 @@ export class DeathScene extends Phaser.Scene {
     // Get character
     const characterSeed = this.registry.get('characterSeed') || Date.now();
     this.character = new Character(characterSeed);
+
+    // Calculate player rank from leaderboard
+    this.calculateRankInfo();
 
     this.createTextElements();
     this.setupInput();
@@ -108,8 +117,31 @@ export class DeathScene extends Phaser.Scene {
         .setTint(0xffd94d)
     );
 
+    // Rank display (only for non-practice)
+    if (!this.isPractice && this.playerRank !== null) {
+      const rankStr = this.playerRank <= 3 ?
+        ['1ST', '2ND', '3RD'][this.playerRank - 1] :
+        `#${this.playerRank}`;
+      const rankColor = this.playerRank === 1 ? 0xffd700 :
+        this.playerRank === 2 ? 0xc0c0c0 :
+        this.playerRank === 3 ? 0xcd7f32 : 0x888888;
+
+      this.rankText = this.add.bitmapText(GAME_WIDTH / 2, statsY + 45, FONT_KEYS.SMALL, `RANK: ${rankStr}`)
+        .setOrigin(0.5)
+        .setDepth(9)
+        .setTint(rankColor);
+    }
+
+    // New best celebration
+    if (this.isNewBest) {
+      this.newBestText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 70, FONT_KEYS.SMALL, 'NEW BEST!')
+        .setOrigin(0.5)
+        .setDepth(9)
+        .setTint(0xffff00);
+    }
+
     // Prompt
-    this.promptText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 85, FONT_KEYS.SMALL, 'TAP TO CONTINUE')
+    this.promptText = this.add.bitmapText(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 95, FONT_KEYS.SMALL, 'TAP TO CONTINUE')
       .setOrigin(0.5)
       .setDepth(9)
       .setTint(0x666666);
@@ -124,6 +156,34 @@ export class DeathScene extends Phaser.Scene {
   private returnToLounge(): void {
     getAudioSystem()?.play('click');
     this.scene.start('LoungeScene');
+  }
+
+  private calculateRankInfo(): void {
+    const leaderboard = this.registry.get('leaderboard') || [];
+    const walletAddress = this.registry.get('walletAddress');
+    const survivalTimeMs = this.survivalTime * 1000;
+
+    // Calculate rank (where this score would place)
+    let rank = 1;
+    for (const entry of leaderboard) {
+      if ((entry.survivalTime || entry.time || 0) > survivalTimeMs) {
+        rank++;
+      }
+    }
+    this.playerRank = rank;
+
+    // Check if this is a new personal best
+    if (walletAddress && !this.isPractice) {
+      const playerEntries = leaderboard.filter((e: { address?: string; player?: string }) =>
+        (e.address || e.player || '').toLowerCase() === walletAddress.toLowerCase()
+      );
+      if (playerEntries.length > 0) {
+        const previousBest = Math.max(...playerEntries.map((e: { survivalTime?: number; time?: number }) => e.survivalTime || e.time || 0));
+        this.isNewBest = survivalTimeMs > previousBest;
+      } else {
+        this.isNewBest = true; // First entry is always a new best
+      }
+    }
   }
 
   update(_time: number, delta: number): void {
@@ -236,7 +296,24 @@ export class DeathScene extends Phaser.Scene {
 
     // Prompt background
     this.graphics.fillStyle(0x333333, promptPulse * 0.5);
-    this.graphics.fillRoundedRect(GAME_WIDTH / 2 - 55, GAME_HEIGHT / 2 + 78, 110, 16, 4);
+    this.graphics.fillRoundedRect(GAME_WIDTH / 2 - 55, GAME_HEIGHT / 2 + 88, 110, 16, 4);
+
+    // Animate rank text
+    if (this.rankText) {
+      const rankPulse = sinePulse(this.gameTime, 2, 0.7, 1);
+      this.rankText.setAlpha(rankPulse);
+    }
+
+    // Animate new best text with celebration effect
+    if (this.newBestText) {
+      const celebrationPulse = sinePulse(this.gameTime, 4, 0.5, 0.5);
+      this.newBestText.setAlpha(celebrationPulse + 0.5);
+
+      // Sparkle glow around "NEW BEST!"
+      const glowPulse = sinePulse(this.gameTime, 5, 0.2, 0.5);
+      this.graphics.fillStyle(0xffff00, glowPulse);
+      this.graphics.fillCircle(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 70, 30 + Math.sin(this.gameTime * 6) * 5);
+    }
   }
 
   shutdown(): void {

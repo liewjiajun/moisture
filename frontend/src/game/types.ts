@@ -71,3 +71,20 @@ export interface GameEvents {
   requestWalletConnect: () => void;
   requestEnterGame: () => void;
 }
+
+// Chat message from Firebase
+export interface ChatMessage {
+  sender: string;
+  message: string;
+  timestamp: number;
+}
+
+// Leaderboard entry from Firebase
+export interface LeaderboardEntry {
+  rank?: number;
+  address: string;
+  survivalTime: number;
+  score: number;
+  timestamp: number;
+  roundId: number;
+}

@@ -190,5 +190,8 @@ export function useFirebasePresence(address: string | null) {
     // Position will be synced on next interval update
   }, []);
 
-  return { onlinePlayers, updatePosition };
+  // Online count includes self (if connected) plus other players
+  const onlineCount = onlinePlayers.length + (address ? 1 : 0);
+
+  return { onlinePlayers, onlineCount, updatePosition };
 }

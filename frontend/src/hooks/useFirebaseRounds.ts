@@ -48,14 +48,25 @@ function getFirebase() {
   return { app, database };
 }
 
+export interface RoundInfo {
+  roundId: number;
+  endTime: number;
+  timeRemaining: number;
+  prizePool: number;
+}
+
 export function useFirebaseRounds() {
   const [pastRounds, setPastRounds] = useState<PastRound[]>([]);
+  const [roundInfo, setRoundInfo] = useState<RoundInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Demo round info with countdown timer
   useEffect(() => {
     // Demo mode
     if (firebaseConfig.apiKey === 'demo-key') {
       console.log('Firebase rounds running in demo mode');
+
+      // Set demo past rounds
       setPastRounds([
         {
           roundId: 3,
@@ -75,18 +86,29 @@ export function useFirebaseRounds() {
             { rank: 3, address: '0x2222...uvwx', survivalTime: 92000 },
           ],
         },
-        {
-          roundId: 1,
-          endTime: Date.now() - 10800000,
-          winners: [
-            { rank: 1, address: '0x3333...yzab', survivalTime: 108000 },
-            { rank: 2, address: '0x4444...cdef', survivalTime: 95000 },
-            { rank: 3, address: '0x5555...ghij', survivalTime: 78000 },
-          ],
-        },
       ]);
+
+      // Set demo current round info (1 hour rounds)
+      const ROUND_DURATION = 3600000; // 1 hour in ms
+      const roundStartTime = Math.floor(Date.now() / ROUND_DURATION) * ROUND_DURATION;
+      const roundEndTime = roundStartTime + ROUND_DURATION;
+
+      const updateRoundInfo = () => {
+        const now = Date.now();
+        const timeRemaining = Math.max(0, roundEndTime - now);
+        setRoundInfo({
+          roundId: 4,
+          endTime: roundEndTime,
+          timeRemaining,
+          prizePool: 5200000000, // 5.2 SUI in MIST
+        });
+      };
+
+      updateRoundInfo();
+      const interval = setInterval(updateRoundInfo, 1000);
       setIsLoading(false);
-      return;
+
+      return () => clearInterval(interval);
     }
 
     try {
@@ -121,5 +143,5 @@ export function useFirebaseRounds() {
     }
   }, []);
 
-  return { pastRounds, isLoading };
+  return { pastRounds, roundInfo, isLoading };
 }

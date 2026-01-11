@@ -8,7 +8,7 @@ import { LoungeScene } from './scenes/LoungeScene';
 import { CountdownScene } from './scenes/CountdownScene';
 import { GameScene } from './scenes/GameScene';
 import { DeathScene } from './scenes/DeathScene';
-import { GameState, WalletState } from './types';
+import { GameState, WalletState, ChatMessage, LeaderboardEntry } from './types';
 
 // Game dimensions (pixel-perfect portrait)
 export const GAME_WIDTH = 180;
@@ -115,6 +115,26 @@ export class MoistureGame {
     } else if (state.characterSeed) {
       this.game.registry.set('characterSeed', state.characterSeed);
     }
+  }
+
+  // Set chat messages from Firebase
+  setChatMessages(messages: ChatMessage[]): void {
+    if (!this.game) return;
+    this.game.registry.set('chatMessages', messages);
+  }
+
+  // Set leaderboard data from Firebase
+  setLeaderboard(entries: LeaderboardEntry[]): void {
+    if (!this.game) return;
+    this.game.registry.set('leaderboard', entries);
+  }
+
+  // Set round info (time remaining, prize pool)
+  setRoundInfo(info: { timeRemaining: number; prizePool: number; onlineCount: number }): void {
+    if (!this.game) return;
+    this.game.registry.set('roundTimeRemaining', info.timeRemaining);
+    this.game.registry.set('prizePool', info.prizePool);
+    this.game.registry.set('onlineCount', info.onlineCount);
   }
 
   // Allow external trigger to enter game (after blockchain transaction)

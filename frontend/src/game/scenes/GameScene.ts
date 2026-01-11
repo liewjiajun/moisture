@@ -47,6 +47,10 @@ export class GameScene extends Phaser.Scene {
   scoreText!: Phaser.GameObjects.BitmapText;
   cardTimerText!: Phaser.GameObjects.BitmapText;
   humidityText!: Phaser.GameObjects.BitmapText;
+  tutorialText!: Phaser.GameObjects.BitmapText;
+
+  // Visual effects
+  damageFlash: number = 0;
 
   // Card selection text objects (3 cards max)
   cardNameTexts: Phaser.GameObjects.BitmapText[] = [];
@@ -181,6 +185,13 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false)
       .setTint(0xff6666);
 
+    // Tutorial hint (shows for first 5 seconds)
+    this.tutorialText = this.add.bitmapText(w / 2, h / 2 - 30, FONT_KEYS.SMALL, 'DODGE!')
+      .setOrigin(0.5)
+      .setDepth(50)
+      .setTint(0x66ffff)
+      .setAlpha(0.8);
+
     // Set up input
     this.setupInput();
 
@@ -314,6 +325,24 @@ export class GameScene extends Phaser.Scene {
 
     // Update screen shake
     this.updateShake();
+
+    // Update damage flash
+    if (this.damageFlash > 0) {
+      this.damageFlash -= dt * 3;
+      if (this.damageFlash < 0) this.damageFlash = 0;
+    }
+
+    // Update tutorial hint (hide after 5 seconds)
+    if (this.survivalTime < 5) {
+      const pulse = 0.6 + Math.sin(this.gameTime * 4) * 0.3;
+      this.tutorialText.setAlpha(pulse);
+      this.tutorialText.setVisible(true);
+    } else if (this.survivalTime < 6) {
+      // Fade out
+      this.tutorialText.setAlpha(1 - (this.survivalTime - 5));
+    } else {
+      this.tutorialText.setVisible(false);
+    }
 
     // Get keyboard input
     let dx = this.joystickX;
@@ -749,6 +778,7 @@ export class GameScene extends Phaser.Scene {
 
   playerHit() {
     this.shakeIntensity = 5;
+    this.damageFlash = 1; // Trigger red screen flash
     this.upgradeSystem.triggerIFrames(this.cardSystem.levels);
     this.audio?.play('hit');
 
@@ -1029,6 +1059,12 @@ export class GameScene extends Phaser.Scene {
 
     // Draw HUD
     this.drawHUD();
+
+    // Draw damage flash overlay (red tint when hit)
+    if (this.damageFlash > 0) {
+      this.uiGraphics.fillStyle(0xff0000, this.damageFlash * 0.3);
+      this.uiGraphics.fillRect(0, 0, w, h);
+    }
   }
 
   drawUpgradeEffects() {

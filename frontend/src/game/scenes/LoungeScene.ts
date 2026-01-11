@@ -62,6 +62,13 @@ export class LoungeScene extends Phaser.Scene {
   private doorHintText!: Phaser.GameObjects.BitmapText;
   private staticTexts: Phaser.GameObjects.BitmapText[] = [];
 
+  // Dynamic content text objects
+  private chatTexts: Phaser.GameObjects.BitmapText[] = [];
+  private leaderboardTexts: Phaser.GameObjects.BitmapText[] = [];
+  private roundTimerText!: Phaser.GameObjects.BitmapText;
+  private prizePoolText!: Phaser.GameObjects.BitmapText;
+  private onlineCountText!: Phaser.GameObjects.BitmapText;
+
   constructor() {
     super({ key: 'LoungeScene' });
   }
@@ -153,16 +160,31 @@ export class LoungeScene extends Phaser.Scene {
         .setTint(Colors.GOLD)
     );
 
-    const placeholderScores = ['1ST', '2ND', '3RD'];
+    // Dynamic leaderboard entries
     const leaderboardColors = [Colors.GOLD, Colors.SILVER, Colors.BRONZE];
-    placeholderScores.forEach((text, i) => {
-      this.staticTexts.push(
-        this.add.bitmapText(35, 108 + i * 11, FONT_KEYS.SMALL, text)
-          .setOrigin(0.5)
-          .setDepth(10)
-          .setTint(leaderboardColors[i])
-      );
-    });
+    for (let i = 0; i < 3; i++) {
+      const text = this.add.bitmapText(35, 108 + i * 11, FONT_KEYS.SMALL, '---')
+        .setOrigin(0.5)
+        .setDepth(10)
+        .setTint(leaderboardColors[i]);
+      this.leaderboardTexts.push(text);
+    }
+
+    // Round info (bottom right)
+    this.roundTimerText = this.add.bitmapText(GAME_WIDTH - 6, GAME_HEIGHT - 52, FONT_KEYS.SMALL, '00:00')
+      .setOrigin(1, 0)
+      .setDepth(10)
+      .setTint(Colors.CYAN);
+
+    this.prizePoolText = this.add.bitmapText(GAME_WIDTH - 6, GAME_HEIGHT - 40, FONT_KEYS.SMALL, '0 SUI')
+      .setOrigin(1, 0)
+      .setDepth(10)
+      .setTint(Colors.GOLD);
+
+    this.onlineCountText = this.add.bitmapText(GAME_WIDTH - 6, GAME_HEIGHT - 28, FONT_KEYS.SMALL, '0 ONLINE')
+      .setOrigin(1, 0)
+      .setDepth(10)
+      .setTint(0x66ff66);
 
     // Chat area
     this.staticTexts.push(
@@ -171,14 +193,13 @@ export class LoungeScene extends Phaser.Scene {
         .setTint(0x66ccff)
     );
 
-    const placeholderChat = ['Welcome!', 'Good luck', 'Have fun~'];
-    placeholderChat.forEach((text, i) => {
-      this.staticTexts.push(
-        this.add.bitmapText(10, GAME_HEIGHT - 45 + i * 11, FONT_KEYS.SMALL, text)
-          .setDepth(10)
-          .setTint(0x999999)
-      );
-    });
+    // Dynamic chat messages (3 visible at a time)
+    for (let i = 0; i < 3; i++) {
+      const text = this.add.bitmapText(10, GAME_HEIGHT - 45 + i * 11, FONT_KEYS.SMALL, '')
+        .setDepth(10)
+        .setTint(0x999999);
+      this.chatTexts.push(text);
+    }
   }
 
   private createNPCs(): void {
@@ -286,7 +307,54 @@ export class LoungeScene extends Phaser.Scene {
     this.updateSteamParticles(dt);
     this.updatePlayerMovement(dt);
     this.updateNPCs(dt);
+    this.updateDynamicContent();
     this.draw();
+  }
+
+  private updateDynamicContent(): void {
+    // Update chat messages from registry
+    const chatMessages = this.registry.get('chatMessages') || [];
+    const recentMessages = chatMessages.slice(-3); // Last 3 messages
+    for (let i = 0; i < 3; i++) {
+      const msg = recentMessages[i];
+      if (msg) {
+        // Truncate sender address and message for display
+        const sender = msg.sender.length > 8 ? msg.sender.slice(0, 6) + '..' : msg.sender;
+        const text = msg.message.length > 10 ? msg.message.slice(0, 10) + '..' : msg.message;
+        this.chatTexts[i].setText(`${sender}: ${text}`);
+      } else {
+        this.chatTexts[i].setText('');
+      }
+    }
+
+    // Update leaderboard from registry
+    const leaderboard = this.registry.get('leaderboard') || [];
+    for (let i = 0; i < 3; i++) {
+      const entry = leaderboard[i];
+      if (entry) {
+        // Format time as seconds with 1 decimal (survivalTime is in ms)
+        const timeStr = (entry.survivalTime / 1000).toFixed(1) + 's';
+        const addr = entry.address.length > 6 ? entry.address.slice(0, 4) + '..' : entry.address;
+        this.leaderboardTexts[i].setText(`${addr} ${timeStr}`);
+      } else {
+        this.leaderboardTexts[i].setText('---');
+      }
+    }
+
+    // Update round timer
+    const timeRemaining = this.registry.get('roundTimeRemaining') || 0;
+    const minutes = Math.floor(timeRemaining / 60000);
+    const seconds = Math.floor((timeRemaining % 60000) / 1000);
+    this.roundTimerText.setText(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+
+    // Update prize pool (convert from MIST to SUI)
+    const prizePool = this.registry.get('prizePool') || 0;
+    const suiAmount = (prizePool / 1_000_000_000).toFixed(1);
+    this.prizePoolText.setText(`${suiAmount} SUI`);
+
+    // Update online count
+    const onlineCount = this.registry.get('onlineCount') || 0;
+    this.onlineCountText.setText(`${onlineCount} ONLINE`);
   }
 
   private updateSteamParticles(dt: number): void {
@@ -636,5 +704,9 @@ export class LoungeScene extends Phaser.Scene {
   shutdown(): void {
     this.staticTexts.forEach(text => text.destroy());
     this.staticTexts = [];
+    this.chatTexts.forEach(text => text.destroy());
+    this.chatTexts = [];
+    this.leaderboardTexts.forEach(text => text.destroy());
+    this.leaderboardTexts = [];
   }
 }

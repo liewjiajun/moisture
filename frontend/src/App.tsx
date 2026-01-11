@@ -50,11 +50,11 @@ function App() {
   const { mutate: signAndExecute } = useSignAndExecuteTransaction();
 
   // Firebase hooks
-  useFirebaseChat();
-  const { submitScore: submitLeaderboardScore } = useFirebaseLeaderboard();
+  const { messages: chatMessages, sendMessage: sendChatMessage } = useFirebaseChat();
+  const { leaderboard, submitScore: submitLeaderboardScore } = useFirebaseLeaderboard();
   const { recordGameStart, recordGameEnd } = useFirebaseStats(account?.address || null);
-  useFirebaseRounds();
-  useFirebasePresence(account?.address || null);
+  const { roundInfo } = useFirebaseRounds();
+  const { onlineCount } = useFirebasePresence(account?.address || null);
 
   // Toast helper
   const showToast = useCallback((message: string, type = 'info') => {
@@ -306,10 +306,18 @@ function App() {
       <GameCanvas
         onLoad={handleGameLoaded}
         walletState={walletState}
+        chatMessages={chatMessages}
+        leaderboard={leaderboard}
+        roundInfo={roundInfo ? {
+          timeRemaining: roundInfo.timeRemaining || 0,
+          prizePool: roundInfo.prizePool || 0,
+          onlineCount: onlineCount || 0,
+        } : undefined}
         onGameStateChanged={handleGameStateChanged}
         onScoreSubmit={handleScoreSubmit}
         onRequestWalletConnect={handleRequestWalletConnect}
         onRequestEnterGame={handleRequestEnterGame}
+        onSendChatMessage={(msg) => sendChatMessage(account?.address || 'Guest', msg)}
       />
 
       {/* Connect wallet button - visible on menu */}
